@@ -1,0 +1,2 @@
+This is a test file for branch0.
+Will be committed to master.
