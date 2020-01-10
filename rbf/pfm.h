@@ -7,6 +7,7 @@ typedef int RC;
 #define PAGE_SIZE 4096
 
 #include <string>
+#include <fstream>
 
 class FileHandle;
 
@@ -43,6 +44,11 @@ public:
     unsigned getNumberOfPages();                                        // Get the number of pages in the file
     RC collectCounterValues(unsigned &readPageCount, unsigned &writePageCount,
                             unsigned &appendPageCount);                 // Put current counter values into variables
+    std::fstream* file;
+    std::fstream* getFile();
+    void setFile(std::fstream *stream);
+
+    bool check_file_stream();
 };
 
 #endif
