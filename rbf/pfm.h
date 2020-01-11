@@ -46,7 +46,8 @@ public:
                             unsigned &appendPageCount);                 // Put current counter values into variables
     std::fstream* file;
     std::fstream* getFile();
-    void setFile(std::fstream *stream);
+    void setFile(std::string& fileName);
+    void closeFile();
 
     bool check_file_stream();
 };

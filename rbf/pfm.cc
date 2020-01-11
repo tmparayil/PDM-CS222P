@@ -1,6 +1,5 @@
 #include "pfm.h"
 #include <iostream>
-#include <fstream>
 
 PagedFileManager &PagedFileManager::instance() {
     static PagedFileManager _pf_manager = PagedFileManager();
@@ -61,10 +60,10 @@ RC PagedFileManager::openFile(const std::string &fileName, FileHandle &fileHandl
         return -1;
     }
 
-    std::fstream f(fileName);
-    if(f.good()) {
+    //std::fstream f(fileName,std::ios::in|std::ios::out);
+    if(file_exists(fileName)) {
 //        std::cout<<"Setting file stream to FileHandle"<<std::endl;
-        fileHandle.setFile(&f);
+        fileHandle.setFile(const_cast<std::string &>(fileName));
         return 0;
     }
 
@@ -75,7 +74,7 @@ RC PagedFileManager::closeFile(FileHandle &fileHandle) {
 
     if((fileHandle.getFile()) != nullptr)
     {
-        fileHandle.setFile(nullptr);
+        fileHandle.closeFile();
         return 0;
     }
 
@@ -92,8 +91,14 @@ FileHandle::FileHandle() {
 
 FileHandle::~FileHandle() = default;
 
-void FileHandle::setFile(std::fstream* stream) {
-    file = stream;
+void FileHandle::setFile(std::string& fileName) {
+    file = new std::fstream(fileName);
+}
+
+void FileHandle::closeFile()
+{
+    file->close();
+    delete(file);
 }
 
 std::fstream* FileHandle::getFile() {
@@ -102,13 +107,10 @@ std::fstream* FileHandle::getFile() {
 
 bool FileHandle::check_file_stream()
 {
-    if(file == nullptr)
-    {
-        std::cout<<"No stream exists to read"<<std::endl;
-        return -1;
-    }
+    if(!file->good())
+        return false;
 
-    return 0;
+    return true;
 }
 
 RC FileHandle::readPage(PageNum pageNum, void *data) {
@@ -116,7 +118,13 @@ RC FileHandle::readPage(PageNum pageNum, void *data) {
     if(!check_file_stream())
         return -1;
 
-    file->read(static_cast<char *>(data), PAGE_SIZE);
+    if(pageNum >= getNumberOfPages())
+        return -1;
+
+    int offset = pageNum * PAGE_SIZE;
+    file->seekg(offset,file->beg);
+    file->read((char*)data, PAGE_SIZE);
+    file->seekg(0,file->beg);
     readPageCounter++;
     return 0;
 }
@@ -126,18 +134,15 @@ RC FileHandle::writePage(PageNum pageNum, const void *data) {
     if(!check_file_stream())
         return -1;
 
-    file->seekg(0,file->end);
-    int length = file->tellg();
-    if(pageNum * PAGE_SIZE > length)
+    if(pageNum >= getNumberOfPages())
         return -1;
-    else
-    {
-        int offset = pageNum * PAGE_SIZE;
-        file->seekg(offset,file->beg);
-        file->write(static_cast<const char *>(data), PAGE_SIZE);
-        writePageCounter++;
-        return 0;
-    }
+
+    int offset = pageNum * PAGE_SIZE;
+    file->seekp(offset,std::ios_base::beg);
+    file->write((char*)data, PAGE_SIZE);
+    file->seekp(0,std::ios_base::beg);
+    writePageCounter++;
+    return 0;
 }
 
 RC FileHandle::appendPage(const void *data) {
@@ -145,20 +150,9 @@ RC FileHandle::appendPage(const void *data) {
     if(!check_file_stream())
         return -1;
 
-    file->seekg(0,file->end);
-    int length = file->tellg();
-    int numOfPages = length / PAGE_SIZE;
-    int incompletePageSize = length % PAGE_SIZE;
-
-    if(incompletePageSize == 0)
-    {
-        file->seekg(numOfPages*PAGE_SIZE,file->beg);
-        file->write(static_cast<const char *>(data), PAGE_SIZE);
-    } else
-    {
-        file->seekg((numOfPages+1)*PAGE_SIZE,file->beg);
-        file->write(static_cast<const char *>(data), PAGE_SIZE);
-    }
+    file->seekp(0,std::ios_base::end);
+    file->write((char*)data, PAGE_SIZE);
+    file->seekp(0,std::ios_base::beg);
     appendPageCounter++;
     return 0;
 }
@@ -167,9 +161,18 @@ unsigned FileHandle::getNumberOfPages() {
 
     file->seekg(0,file->end);
     int length = file->tellg();
-    
+    file->seekg(0,file->beg);
+//    std::cout<<length<<std::endl;
+    int pages = length / PAGE_SIZE;
+
+//    std::cout<<"Page count  "<<pages<<std::endl;
+    return pages;
 }
 
 RC FileHandle::collectCounterValues(unsigned &readPageCount, unsigned &writePageCount, unsigned &appendPageCount) {
-    return -1;
+
+    readPageCount = readPageCounter;
+    writePageCount = writePageCounter;
+    appendPageCount = appendPageCounter;
+    return 0;
 }
