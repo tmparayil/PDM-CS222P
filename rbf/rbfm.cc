@@ -25,14 +25,17 @@ RC RecordBasedFileManager::createFile(const std::string &fileName) {
 
 RC RecordBasedFileManager::destroyFile(const std::string &fileName) {
     PagedFileManager::instance().destroyFile(fileName);
+    return 0;
 }
 
 RC RecordBasedFileManager::openFile(const std::string &fileName, FileHandle &fileHandle) {
     PagedFileManager::instance().openFile(fileName,fileHandle);
+    return 0;
 }
 
 RC RecordBasedFileManager::closeFile(FileHandle &fileHandle) {
     PagedFileManager::instance().closeFile(fileHandle);
+    return 0;
 }
 
 RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
