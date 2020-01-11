@@ -1,4 +1,9 @@
 #include "rbfm.h"
+#include "pfm.h"
+
+#include <vector>
+#include <cstring>
+#include <climits>
 
 RecordBasedFileManager &RecordBasedFileManager::instance() {
     static RecordBasedFileManager _rbf_manager = RecordBasedFileManager();
@@ -14,19 +19,20 @@ RecordBasedFileManager::RecordBasedFileManager(const RecordBasedFileManager &) =
 RecordBasedFileManager &RecordBasedFileManager::operator=(const RecordBasedFileManager &) = default;
 
 RC RecordBasedFileManager::createFile(const std::string &fileName) {
-    return -1;
+    PagedFileManager::instance().createFile(fileName);
+    return 0;
 }
 
 RC RecordBasedFileManager::destroyFile(const std::string &fileName) {
-    return -1;
+    PagedFileManager::instance().destroyFile(fileName);
 }
 
 RC RecordBasedFileManager::openFile(const std::string &fileName, FileHandle &fileHandle) {
-    return -1;
+    PagedFileManager::instance().openFile(fileName,fileHandle);
 }
 
 RC RecordBasedFileManager::closeFile(FileHandle &fileHandle) {
-    return -1;
+    PagedFileManager::instance().closeFile(fileHandle);
 }
 
 RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
