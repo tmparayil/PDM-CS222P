@@ -4,6 +4,7 @@
 #include <vector>
 #include <cstring>
 #include <climits>
+#include <iostream>
 
 RecordBasedFileManager &RecordBasedFileManager::instance() {
     static RecordBasedFileManager _rbf_manager = RecordBasedFileManager();
@@ -77,7 +78,7 @@ RC RecordBasedFileManager::readRecord(FileHandle &fileHandle, const std::vector<
     charPage += prevOffset;
 
     //Assuming we use 8 bits to store null values for attributes
-    charPage += 8;
+    charPage += 1;
     //
     if(rowId == rid.slotNum)
     {
@@ -95,7 +96,33 @@ RC RecordBasedFileManager::deleteRecord(FileHandle &fileHandle, const std::vecto
 }
 
 RC RecordBasedFileManager::printRecord(const std::vector<Attribute> &recordDescriptor, const void *data) {
-    return -1;
+
+    char* printData = (char*)data;
+    for(int itr = 0 ;itr < recordDescriptor.size();itr++) {
+        switch(recordDescriptor[itr].type)
+        {
+            case TypeInt:
+                std::cout<<recordDescriptor[itr].name<<":\s"<<(int*)printData<<"\s";
+                printData += 4;
+                break;
+            case TypeReal:
+                std::cout<<recordDescriptor[itr].name<<":\s"<<(float*)printData<<"\s";
+                printData += 4;
+                break;
+            case TypeVarChar:
+                int* length = (int*)printData;
+                printData += 4;
+                std::cout<<recordDescriptor[itr].name<<":\s";
+                for(int i=0;i<*length;i++)
+                {
+                    std::cout<<*printData;
+                    printData++;
+                }
+                std::cout<<std::endl;
+                break;
+        }
+    }
+    return 0;
 }
 
 RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
