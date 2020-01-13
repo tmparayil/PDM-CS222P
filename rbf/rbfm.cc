@@ -45,6 +45,47 @@ RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle, const std::vecto
 
 RC RecordBasedFileManager::readRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
                                       const RID &rid, void *data) {
+    void* page = malloc(PAGE_SIZE);
+    if(fileHandle.readPage(rid.pageNum,page) != 0)
+        return -1;
+
+    // Do we want to directly find offset of record/slots and then allocate memory based on record length ?
+//    int offset = rid.pageNum*PAGE_SIZE;
+//    fileHandle.file->seekp(offset,fileHandle.file->beg);
+
+    // Review below code after insert record design
+    char* charPage = (char*)page;
+    // Find offset of the record pointer
+    char* record = charPage + PAGE_SIZE - (rid.slotNum + 1)*8;
+    char* prevRecord = record + 8;
+
+    slots* prevSlot = (slots*)prevRecord;
+    int prevOffset = prevSlot->offset;
+
+    slots* slot = (slots*)record;
+    int offset = slot->offset;
+    int rowId = slot->slotNumber;
+    int length = prevOffset - offset;
+
+    /**
+     * At this point, we have :
+     * start offset of record -> prevOffset
+     * length of record -> length
+     * rowId -> rid.slotNum
+     * we shift the file pointer of charPage to point to record
+     */
+    charPage += prevOffset;
+
+    //Assuming we use 8 bits to store null values for attributes
+    charPage += 8;
+    //
+    if(rowId == rid.slotNum)
+    {
+        memcpy(data, charPage, length);
+        free(page);
+        return 0;
+    }
+
     return -1;
 }
 
