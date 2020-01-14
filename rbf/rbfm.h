@@ -9,11 +9,6 @@ typedef struct {
     unsigned short slotNum;    // slot number in the page
 } RID;
 
-typedef struct {
-    int slotNumber;
-    int offset;
-} slots;
-
 // Attribute
 typedef enum {
     TypeInt = 0, TypeReal, TypeVarChar

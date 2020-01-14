@@ -46,48 +46,40 @@ RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle, const std::vecto
 
 RC RecordBasedFileManager::readRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
                                       const RID &rid, void *data) {
-    void* page = malloc(PAGE_SIZE);
-    if(fileHandle.readPage(rid.pageNum,page) != 0)
+
+    if(fileHandle.file->good() != 0)
         return -1;
 
-    // Do we want to directly find offset of record/slots and then allocate memory based on record length ?
-//    int offset = rid.pageNum*PAGE_SIZE;
-//    fileHandle.file->seekp(offset,fileHandle.file->beg);
-
-    // Review below code after insert record design
-    char* charPage = (char*)page;
-    // Find offset of the record pointer
-    char* record = charPage + PAGE_SIZE - (rid.slotNum + 1)*8;
-    char* prevRecord = record + 8;
-
-    slots* prevSlot = (slots*)prevRecord;
-    int prevOffset = prevSlot->offset;
-
-    slots* slot = (slots*)record;
-    int offset = slot->offset;
-    int rowId = slot->slotNumber;
-    int length = prevOffset - offset;
-
     /**
-     * At this point, we have :
-     * start offset of record -> prevOffset
-     * length of record -> length
-     * rowId -> rid.slotNum
-     * we shift the file pointer of charPage to point to record
+     * Initial offset is ( directory page + Page num ) * PAGE SIZE - (slot number)
      */
-    charPage += prevOffset;
+    int offset = (rid.pageNum+1)*PAGE_SIZE -  (rid.slotNum);
+    fileHandle.file->seekg(offset,fileHandle.file->beg);
 
-    //Assuming we use 8 bits to store null values for attributes
-    charPage += 1;
-    //
-    if(rowId == rid.slotNum)
+    int curr_slotOffset;
+    int curr_slotNumber;
+    int prev_slotOffset;
+
+    fileHandle.file->read((char*)&curr_slotNumber, sizeof(int));
+    fileHandle.file->seekg(sizeof(int),std::ios_base::cur);
+    fileHandle.file->read((char*)&curr_slotOffset, sizeof(int));
+    fileHandle.file->seekg(sizeof(int),std::ios_base::cur);
+    fileHandle.file->read((char*)&prev_slotOffset, 2 * sizeof(int));
+
+    if(rid.slotNum != curr_slotNumber)
     {
-        memcpy(data, charPage, length);
-        free(page);
-        return 0;
+        std::cout<<"Incorrect row ID returned. check slot numbers"<<std::endl;
+        return -1;
     }
 
-    return -1;
+    int length = curr_slotOffset - prev_slotOffset;
+    void* page = malloc(length);
+
+    fileHandle.file->seekg(prev_slotOffset,std::ios_base::beg);
+    fileHandle.file->read((char*)page,length);
+    memcpy(data,page,length);
+    free(page);
+    return 0;
 }
 
 RC RecordBasedFileManager::deleteRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
@@ -103,11 +95,11 @@ RC RecordBasedFileManager::printRecord(const std::vector<Attribute> &recordDescr
         {
             case TypeInt:
                 std::cout<<recordDescriptor[itr].name<<":\s"<<(int*)printData<<"\s";
-                printData += 4;
+                printData += sizeof(int);
                 break;
             case TypeReal:
                 std::cout<<recordDescriptor[itr].name<<":\s"<<(float*)printData<<"\s";
-                printData += 4;
+                printData += sizeof(float);
                 break;
             case TypeVarChar:
                 int* length = (int*)printData;
@@ -116,7 +108,7 @@ RC RecordBasedFileManager::printRecord(const std::vector<Attribute> &recordDescr
                 for(int i=0;i<*length;i++)
                 {
                     std::cout<<*printData;
-                    printData++;
+                    printData += sizeof(char);
                 }
                 std::cout<<std::endl;
                 break;
