@@ -4,6 +4,7 @@
 #include <sys/stat.h>
 #include <cmath>
 #include <vector>
+#include <cstring>
 
 #include "pfm.h"
 #include "rbfm.h"
