@@ -58,6 +58,7 @@ RC PagedFileManager::openFile(const std::string &fileName, FileHandle &fileHandl
         std::cout<<"Already file stream is open with this handle"<<std::endl;
         return -1;
     }
+
     if(file_exists(fileName)) {
         fileHandle.setFile(const_cast<std::string &>(fileName));
         return 0;
@@ -113,7 +114,7 @@ RC FileHandle::readPage(PageNum pageNum, void *data) {
 
     if(!check_file_stream())
         return -1;
-
+  
     if(pageNum >= FileHandle::getNumberOfPages())
     {
         return -1;
@@ -139,6 +140,7 @@ RC FileHandle::writePage(PageNum pageNum, const void *data) {
     file->seekp(offset, std::ios_base::beg);
     file->write((char *)data, PAGE_SIZE);
     file->seekp(0, std::ios_base::beg);
+
     writePageCounter++;
     return 0;
 }
@@ -161,6 +163,7 @@ unsigned FileHandle::getNumberOfPages() {
     int length = file->tellg();
     file->seekg(0,std::ios_base::beg);
     int pages = length / PAGE_SIZE;
+
     return pages;
 }
 
