@@ -20,7 +20,6 @@ bool file_exists(const std::string &fileName)
     if(f.good())
     {
         f.close();
-//        std::cout<< " File exists" << std::endl;
         return true;
     }
     return false;
@@ -60,9 +59,7 @@ RC PagedFileManager::openFile(const std::string &fileName, FileHandle &fileHandl
         return -1;
     }
 
-    //std::fstream f(fileName,std::ios::in|std::ios::out);
     if(file_exists(fileName)) {
-//        std::cout<<"Setting file stream to FileHandle"<<std::endl;
         fileHandle.setFile(const_cast<std::string &>(fileName));
         return 0;
     }
@@ -117,9 +114,11 @@ RC FileHandle::readPage(PageNum pageNum, void *data) {
 
     if(!check_file_stream())
         return -1;
-
-    if(pageNum >= getNumberOfPages())
+  
+    if(pageNum >= FileHandle::getNumberOfPages())
+    {
         return -1;
+    }
 
     int offset = pageNum * PAGE_SIZE;
     file->seekg(offset,file->beg);
@@ -131,16 +130,17 @@ RC FileHandle::readPage(PageNum pageNum, void *data) {
 
 RC FileHandle::writePage(PageNum pageNum, const void *data) {
 
-    if(!check_file_stream())
+    if (!check_file_stream())
         return -1;
 
-    if(pageNum >= getNumberOfPages())
+    if (pageNum >= getNumberOfPages())
         return -1;
 
     int offset = pageNum * PAGE_SIZE;
-    file->seekp(offset,std::ios_base::beg);
-    file->write((char*)data, PAGE_SIZE);
-    file->seekp(0,std::ios_base::beg);
+    file->seekp(offset, std::ios_base::beg);
+    file->write((char *)data, PAGE_SIZE);
+    file->seekp(0, std::ios_base::beg);
+
     writePageCounter++;
     return 0;
 }
@@ -159,13 +159,11 @@ RC FileHandle::appendPage(const void *data) {
 
 unsigned FileHandle::getNumberOfPages() {
 
-    file->seekg(0,file->end);
+    file->seekg(0,std::ios_base::end);
     int length = file->tellg();
-    file->seekg(0,file->beg);
-//    std::cout<<length<<std::endl;
+    file->seekg(0,std::ios_base::beg);
     int pages = length / PAGE_SIZE;
 
-//    std::cout<<"Page count  "<<pages<<std::endl;
     return pages;
 }
 

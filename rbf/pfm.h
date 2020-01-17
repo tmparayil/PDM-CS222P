@@ -5,6 +5,8 @@ typedef unsigned PageNum;
 typedef int RC;
 
 #define PAGE_SIZE 4096
+#define HEADER_SIZE 4
+#define HEADER_VAL -7346754
 
 #include <string>
 #include <fstream>

@@ -104,6 +104,13 @@ public:
     //        age: NULL  height: 7.5  salary: 7500)
     RC printRecord(const std::vector<Attribute> &recordDescriptor, const void *data);
 
+    //Helper functions ----- //
+    int getRecSize(const void *data, const std::vector<Attribute> &recordDescriptor);
+    void setPage(FileHandle &fileHandle);
+    void initialise(FileHandle &fileHandle,int pageNum);
+    void updateFreeSpace(int pageNum,short freeSpace,FileHandle &fileHandle);
+    // End of helper functions
+
     /*****************************************************************************************************
     * IMPORTANT, PLEASE READ: All methods below this comment (other than the constructor and destructor) *
     * are NOT required to be implemented for Project 1                                                   *
