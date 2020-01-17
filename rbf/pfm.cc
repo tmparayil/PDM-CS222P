@@ -53,11 +53,11 @@ RC PagedFileManager::destroyFile(const std::string &fileName) {
 
 RC PagedFileManager::openFile(const std::string &fileName, FileHandle &fileHandle) {
 
-    if(fileHandle.getFile() != nullptr)
-    {
-        std::cout<<"Already file stream is open with this handle"<<std::endl;
-        return -1;
-    }
+//    if(fileHandle.getFile() != nullptr)
+//    {
+//        std::cout<<"Already file stream is open with this handle"<<std::endl;
+//        return -1;
+//    }
 
     if(file_exists(fileName)) {
         fileHandle.setFile(const_cast<std::string &>(fileName));
