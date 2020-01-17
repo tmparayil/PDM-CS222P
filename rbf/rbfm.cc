@@ -85,19 +85,21 @@ int RecordBasedFileManager::getRecSize(const void *data, const std::vector<Attri
  * @param pageNum
  * @return int
  */
-short RecordBasedFileManager::setPage(FileHandle &fileHandle) {
+void RecordBasedFileManager::setPage(FileHandle &fileHandle) {
 
     void* buffer = malloc(PAGE_SIZE);
     int offset = PAGE_SIZE - 2 * sizeof(int);
-    int recordOffset = 0;
+    int recordOffset = sizeof(int);
     int slotOffset = offset;
-
+    int freeSpace = (slotOffset - recordOffset);
+    memcpy((char*)buffer,(char*)&freeSpace, sizeof(int));
     memcpy((char*)buffer + offset,(char*)&recordOffset, sizeof(int));
     memcpy((char*)buffer + offset + sizeof(int),(char*)&slotOffset, sizeof(int));
+
     fileHandle.appendPage(buffer);
 
     free(buffer);
-    return (slotOffset - recordOffset);
+
 }
 
 /**
@@ -118,11 +120,12 @@ void RecordBasedFileManager::initialise(FileHandle &fileHandle,int pageNum) {
         fileHandle.readPage(0,buffer);
         int totalPages=0;
         memcpy((char*)&totalPages,(char*)buffer + HEADER_SIZE, sizeof(int));
-
-        int offset = HEADER_SIZE + sizeof(int) + (pageNum - 1) * sizeof(short);
-        short freeSpace = RecordBasedFileManager::setPage(fileHandle);
-        memcpy((char*)buffer + offset,(char*)&freeSpace, sizeof(short));
-
+//---- COMMENTING THIS AS IF NUMBER OF RECORD INSERTS EXCEEDS THE HIDDEN PAGE LIMIT, NO WAY TO HANDLE THIS
+//---- SHIFTING THE FREE SPACE TO INDIVIDUAL PAGES
+//        int offset = HEADER_SIZE + sizeof(int) + (pageNum - 1) * sizeof(short);
+//        short freeSpace = RecordBasedFileManager::setPage(fileHandle);
+//        memcpy((char*)buffer + offset,(char*)&freeSpace, sizeof(short));
+        RecordBasedFileManager::setPage(fileHandle);
         //Refresh the number of pages in hidden page
         totalPages++;
         memcpy((char*)buffer + HEADER_SIZE,(char*)&totalPages, sizeof(int));
@@ -139,6 +142,8 @@ void RecordBasedFileManager::initialise(FileHandle &fileHandle,int pageNum) {
     free(buffer);
 }
 
+//This method is to update free space in the hidden directory
+//We are no longer calling this method as Free space will be stored in individual pages
 void RecordBasedFileManager::updateFreeSpace(int pageNum, short freeSpace, FileHandle &fileHandle) {
     void* buffer = malloc(PAGE_SIZE);
     fileHandle.readPage(0,buffer);
@@ -173,16 +178,15 @@ RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle, const std::vecto
 
     if(header != HEADER_VAL)
     {
-//        std::cout<<"Hidden directory not initialized"<<std::endl;
         return -1;
     } else
     {
         int totalPages=0;
+        int freeSize = 0;
         bool gotPage = false;
         //Read number of data pages
         memcpy((char*)&totalPages,(char*)hidden + HEADER_SIZE, sizeof(int));
         int page = 0;
-        short freeSize = 0;
         if(totalPages == 0)
         {
             RecordBasedFileManager::initialise(fileHandle,1);
@@ -190,12 +194,12 @@ RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle, const std::vecto
             page = totalPages;
         } else
         {
-            int offset = HEADER_SIZE + sizeof(int);
+            void* aPage = malloc(PAGE_SIZE);
             // Looping through all the pages in hidden directory
             for(int i=1;i<=totalPages;i++)
             {
-                memcpy((char*)&freeSize,(char*)hidden + offset, sizeof(short));
-                offset += sizeof(short);
+                fileHandle.readPage(i,aPage);
+                memcpy((char*)&freeSize,(char*)aPage, sizeof(int));
 
                 if(freeSize >= recSize + 2* sizeof(int))
                 {
@@ -204,6 +208,7 @@ RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle, const std::vecto
                     break;
                 }
             }
+            free(aPage);
 
             // If no page in the directory has enough free space for the record
             if(!gotPage)
@@ -213,12 +218,13 @@ RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle, const std::vecto
                 page = totalPages;
             }
         }
-
+        // Currently we get page data from above block and then read page again
+        // We have page in memory, which we can try to re-use below.
         // Reading slot and record offsets
         void* buffer = malloc(PAGE_SIZE);
         fileHandle.readPage(page,buffer);
 
-        int ptrOffsets = PAGE_SIZE - 8;
+        int ptrOffsets = PAGE_SIZE - 2* sizeof(int);
         int recordOffset , slotOffset;
 
         memcpy((char*)&recordOffset, (char*)buffer + ptrOffsets, sizeof(int));
@@ -244,10 +250,11 @@ RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle, const std::vecto
         memcpy((char*)buffer + ptrOffsets,(char*)&recordOffset, sizeof(int));
         memcpy((char*)buffer + ptrOffsets + sizeof(int),(char*)&slotOffset, sizeof(int));
 
-        short freeSpace = slotOffset - recordOffset;
+        int freeSpace = slotOffset - recordOffset;
+        memcpy((char*)buffer,(char*)&freeSpace, sizeof(int));
 
         fileHandle.writePage(page,buffer);
-        RecordBasedFileManager::updateFreeSpace(page,freeSpace,fileHandle);
+        //RecordBasedFileManager::updateFreeSpace(page,freeSpace,fileHandle);
     }
     free(hidden);
     return 0;
