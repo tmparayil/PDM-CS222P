@@ -51,7 +51,6 @@ int RecordBasedFileManager::getRecSize(const void *data, const std::vector<Attri
 
     RecSize += bytesforNullIndic;
 
-    // -- Why are we appending a null field in this method ?
     unsigned char *null_Fields_Indicator = (unsigned char *) malloc(nullinfosize);
     memcpy(null_Fields_Indicator, (char *) data, nullinfosize);
 
@@ -97,9 +96,7 @@ void RecordBasedFileManager::setPage(FileHandle &fileHandle) {
     memcpy((char*)buffer + offset + sizeof(int),(char*)&slotOffset, sizeof(int));
 
     fileHandle.appendPage(buffer);
-
     free(buffer);
-
 }
 
 /**
@@ -113,43 +110,7 @@ void RecordBasedFileManager::setPage(FileHandle &fileHandle) {
  * @param pageNum
  */
 void RecordBasedFileManager::initialise(FileHandle &fileHandle,int pageNum) {
-
-    void* buffer = malloc(PAGE_SIZE);
-    if(pageNum != -1)
-    {
-        fileHandle.readPage(0,buffer);
-        int totalPages=0;
-        memcpy((char*)&totalPages,(char*)buffer + HEADER_SIZE, sizeof(int));
-//---- COMMENTING THIS AS IF NUMBER OF RECORD INSERTS EXCEEDS THE HIDDEN PAGE LIMIT, NO WAY TO HANDLE THIS
-//---- SHIFTING THE FREE SPACE TO INDIVIDUAL PAGES
-//        int offset = HEADER_SIZE + sizeof(int) + (pageNum - 1) * sizeof(short);
-//        short freeSpace = RecordBasedFileManager::setPage(fileHandle);
-//        memcpy((char*)buffer + offset,(char*)&freeSpace, sizeof(short));
-        RecordBasedFileManager::setPage(fileHandle);
-        //Refresh the number of pages in hidden page
-        totalPages++;
-        memcpy((char*)buffer + HEADER_SIZE,(char*)&totalPages, sizeof(int));
-        fileHandle.writePage(0,buffer);
-    } else
-    {
-        int temp = HEADER_VAL;
-        int recordNum = 0;
-        // First time creation of hidden page
-        memcpy((char*)buffer,(char*)&temp,HEADER_SIZE);
-        memcpy((char*)buffer + HEADER_SIZE,(char*)&recordNum, sizeof(int));
-        fileHandle.appendPage(buffer);
-    }
-    free(buffer);
-}
-
-//This method is to update free space in the hidden directory
-//We are no longer calling this method as Free space will be stored in individual pages
-void RecordBasedFileManager::updateFreeSpace(int pageNum, short freeSpace, FileHandle &fileHandle) {
-    void* buffer = malloc(PAGE_SIZE);
-    fileHandle.readPage(0,buffer);
-    int offset = HEADER_SIZE + sizeof(int) + (pageNum - 1) * sizeof(short);
-    memcpy((char*)buffer + offset,(char*)&freeSpace, sizeof(short));
-    fileHandle.writePage(0,buffer);
+    RecordBasedFileManager::setPage(fileHandle);
 }
 
 /**
@@ -170,102 +131,88 @@ void RecordBasedFileManager::updateFreeSpace(int pageNum, short freeSpace, FileH
 RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
                                         const void *data, RID &rid) {
     uint32_t recSize = getRecSize(data,recordDescriptor);
-    int header = 0;
-    void* hidden = malloc(PAGE_SIZE);
+    int totalPages=fileHandle.getNumberOfPages();
 
-    fileHandle.readPage(0,hidden);
-    memcpy((char*)&header,(char*)hidden,HEADER_SIZE);
-
-    if(header != HEADER_VAL)
+    int freeSize = 0;
+    bool gotPage = false;
+    int page = 0;
+    if(totalPages == 0)
     {
-        return -1;
-    } else
-    {
-        int totalPages=0;
-        int freeSize = 0;
-        bool gotPage = false;
-        //Read number of data pages
-        memcpy((char*)&totalPages,(char*)hidden + HEADER_SIZE, sizeof(int));
-        int page = 0;
-        if(totalPages == 0)
+        RecordBasedFileManager::initialise(fileHandle,0);
+    }
+    else{
+        void* aPage = malloc(PAGE_SIZE);
+        // Looping through all the pages in hidden directory
+        for(int i=0;i<totalPages;i++)
         {
-            RecordBasedFileManager::initialise(fileHandle,1);
-            totalPages++;
-            page = totalPages;
-        } else
-        {
-            void* aPage = malloc(PAGE_SIZE);
-            // Looping through all the pages in hidden directory
-            for(int i=1;i<=totalPages;i++)
-            {
-                fileHandle.readPage(i,aPage);
-                memcpy((char*)&freeSize,(char*)aPage, sizeof(int));
+            fileHandle.readPage(i,aPage);
+            memcpy((char*)&freeSize,(char*)aPage, sizeof(int));
 
-                if(freeSize >= recSize + 2* sizeof(int))
-                {
-                    page = i;
-                    gotPage = true;
-                    break;
-                }
-            }
-            free(aPage);
-
-            // If no page in the directory has enough free space for the record
-            if(!gotPage)
+            if(freeSize >= recSize + 2* sizeof(int))
             {
-                RecordBasedFileManager::initialise(fileHandle,totalPages + 1);
-                totalPages++;
-                page = totalPages;
+                page = i;
+                gotPage = true;
+                break;
             }
         }
-        // Currently we get page data from above block and then read page again
-        // We have page in memory, which we can try to re-use below.
-        // Reading slot and record offsets
-        void* buffer = malloc(PAGE_SIZE);
-        fileHandle.readPage(page,buffer);
+        free(aPage);
 
-        int ptrOffsets = PAGE_SIZE - 2* sizeof(int);
-        int recordOffset , slotOffset;
-
-        memcpy((char*)&recordOffset, (char*)buffer + ptrOffsets, sizeof(int));
-        memcpy((char*)&slotOffset, (char*)buffer + ptrOffsets + sizeof(int), sizeof(int));
-
-        int slotNumber = (ptrOffsets - slotOffset ) / 8;
-        slotNumber++;
-
-        //Updating RID of record
-        rid.pageNum = page;
-        rid.slotNum = slotNumber;
-
-        // Insert new record slot in slot directory
-        memcpy((char*)buffer + slotOffset - 4,(char*)&recSize, sizeof(int));
-        memcpy((char*)buffer + slotOffset - 8,(char*)&recordOffset, sizeof(int));
-        slotOffset -= 2 * sizeof(int);
-
-        // Inserting record
-        memcpy((char*)buffer + recordOffset,(char*)data,recSize);
-        recordOffset += recSize;
-
-        // Updating slot-record pointers after insert
-        memcpy((char*)buffer + ptrOffsets,(char*)&recordOffset, sizeof(int));
-        memcpy((char*)buffer + ptrOffsets + sizeof(int),(char*)&slotOffset, sizeof(int));
-
-        int freeSpace = slotOffset - recordOffset;
-        memcpy((char*)buffer,(char*)&freeSpace, sizeof(int));
-
-        fileHandle.writePage(page,buffer);
-        //RecordBasedFileManager::updateFreeSpace(page,freeSpace,fileHandle);
+        // If no page in the directory has enough free space for the record
+        if(!gotPage)
+        {
+            RecordBasedFileManager::initialise(fileHandle,totalPages + 1);
+            page = totalPages;
+        }
     }
-    free(hidden);
+
+    // Currently we get page data from above block and then read page again
+    // We have page in memory, which we can try to re-use below.
+    // Reading slot and record offsets
+    void* buffer = malloc(PAGE_SIZE);
+    fileHandle.readPage(page,buffer);
+
+    int ptrOffsets = PAGE_SIZE - 2* sizeof(int);
+    int recordOffset , slotOffset;
+
+    memcpy((char*)&recordOffset, (char*)buffer + ptrOffsets, sizeof(int));
+    memcpy((char*)&slotOffset, (char*)buffer + ptrOffsets + sizeof(int), sizeof(int));
+
+    int slotNumber = (ptrOffsets - slotOffset ) / (2 * sizeof(int));
+    slotNumber++;
+
+    //Updating RID of record
+    rid.pageNum = page;
+    rid.slotNum = slotNumber;
+
+    // Insert new record slot in slot directory
+    memcpy((char*)buffer + slotOffset - sizeof(int),(char*)&recSize, sizeof(int));
+    memcpy((char*)buffer + slotOffset - 2 * sizeof(int),(char*)&recordOffset, sizeof(int));
+    slotOffset -= 2 * sizeof(int);
+
+    // Inserting record
+    memcpy((char*)buffer + recordOffset,(char*)data,recSize);
+    recordOffset += recSize;
+
+    // Updating slot-record pointers after insert
+    memcpy((char*)buffer + ptrOffsets,(char*)&recordOffset, sizeof(int));
+    memcpy((char*)buffer + ptrOffsets + sizeof(int),(char*)&slotOffset, sizeof(int));
+
+    int freeSpace = slotOffset - recordOffset;
+    memcpy((char*)buffer,(char*)&freeSpace, sizeof(int));
+
+    fileHandle.writePage(page,buffer);
+    free(buffer);
     return 0;
 }
 
 RC RecordBasedFileManager::readRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
                                       const RID &rid, void *data) {
+
     int offset = PAGE_SIZE - 2 * sizeof(int) - rid.slotNum * 2 * sizeof(int);
     void* buffer = malloc(PAGE_SIZE);
     int slotOffset , length;
     fileHandle.readPage(rid.pageNum,buffer);
+
     memcpy((char*)&slotOffset,(char*)buffer + offset, sizeof(int));
     memcpy((char*)&length,(char*)buffer + offset + sizeof(int), sizeof(int));
 
@@ -299,30 +246,28 @@ RC RecordBasedFileManager::printRecord(const std::vector<Attribute> &recordDescr
                 {
                     memcpy((char*)&tempInt,(char*)data + offset, sizeof(int));
                     std::cout<<recordDescriptor[itr].name<<":\t"<<tempInt<<"\t";
+                    offset += sizeof(int);
                 } else
                 {
                     std::cout<<recordDescriptor[itr].name<<":\tNULL"<<"\t";
                 }
-
-                offset += sizeof(int);
                 break;
             case TypeReal:
                 float tempFloat;
                 if(!checkNullBit) {
                     memcpy((char *) &tempFloat, (char *) data + offset, sizeof(float));
                     std::cout<<recordDescriptor[itr].name<<":\t"<<tempFloat<<"\t";
+                    offset += sizeof(float);
                 } else
                 {
                     std::cout<<recordDescriptor[itr].name<<":\tNULL"<<"\t";
                 }
-                offset += sizeof(float);
                 break;
             case TypeVarChar:
                 int length;
                 if(!checkNullBit)
                 {
                     memcpy((char*)&length,(char*)data + offset, sizeof(int));
-                    std::cout<<"Length : "<<length<<std::endl;
                     offset += sizeof(int);
 
                     char* tempString = new char[length+1];

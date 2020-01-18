@@ -110,7 +110,6 @@ public:
     int getRecSize(const void *data, const std::vector<Attribute> &recordDescriptor);
     void setPage(FileHandle &fileHandle);
     void initialise(FileHandle &fileHandle,int pageNum);
-    void updateFreeSpace(int pageNum,short freeSpace,FileHandle &fileHandle);
     // End of helper functions
 
     /*****************************************************************************************************
