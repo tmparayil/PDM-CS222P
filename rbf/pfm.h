@@ -10,6 +10,7 @@ typedef int RC;
 
 #include <string>
 #include <fstream>
+#include <cstring>
 
 class FileHandle;
 
