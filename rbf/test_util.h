@@ -4,6 +4,7 @@
 #include <sys/stat.h>
 #include <cmath>
 #include <vector>
+#include <climits>
 #include <cstring>
 
 #include "pfm.h"
