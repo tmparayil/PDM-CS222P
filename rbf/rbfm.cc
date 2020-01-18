@@ -26,7 +26,6 @@ RC RecordBasedFileManager::createFile(const std::string &fileName) {
         return -1;
     FileHandle fileHandle;
     pfm.openFile(fileName.c_str(),fileHandle);
-    RecordBasedFileManager::initialise(fileHandle,-1);
     return 0;
 }
 
