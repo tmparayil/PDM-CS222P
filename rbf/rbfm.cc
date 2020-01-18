@@ -246,23 +246,22 @@ RC RecordBasedFileManager::printRecord(const std::vector<Attribute> &recordDescr
                 {
                     memcpy((char*)&tempInt,(char*)data + offset, sizeof(int));
                     std::cout<<recordDescriptor[itr].name<<":\t"<<tempInt<<"\t";
+                    offset += sizeof(int);
                 } else
                 {
                     std::cout<<recordDescriptor[itr].name<<":\tNULL"<<"\t";
                 }
-
-                offset += sizeof(int);
                 break;
             case TypeReal:
                 float tempFloat;
                 if(!checkNullBit) {
                     memcpy((char *) &tempFloat, (char *) data + offset, sizeof(float));
                     std::cout<<recordDescriptor[itr].name<<":\t"<<tempFloat<<"\t";
+                    offset += sizeof(float);
                 } else
                 {
                     std::cout<<recordDescriptor[itr].name<<":\tNULL"<<"\t";
                 }
-                offset += sizeof(float);
                 break;
             case TypeVarChar:
                 int length;
