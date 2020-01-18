@@ -33,10 +33,6 @@ protected:
 class FileHandle {
 public:
     // variables to keep the counter for each operation
-    unsigned readPageCounter;
-    unsigned writePageCounter;
-    unsigned appendPageCounter;
-
     FileHandle();                                                       // Default constructor
     ~FileHandle();                                                      // Destructor
 
@@ -53,5 +49,7 @@ public:
 
     bool check_file_stream();
 };
+
+void initialise(std::fstream &file);
 
 #endif
