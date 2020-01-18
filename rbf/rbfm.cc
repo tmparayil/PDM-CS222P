@@ -142,7 +142,7 @@ RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle, const std::vecto
     else{
         void* aPage = malloc(PAGE_SIZE);
         // Looping through all the pages in hidden directory
-        for(int i=0;i<totalPages;i++)
+        for(int i=totalPages - 1 ;i >= 0;i--)
         {
             fileHandle.readPage(i,aPage);
             memcpy((char*)&freeSize,(char*)aPage, sizeof(int));
