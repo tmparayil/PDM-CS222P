@@ -2,6 +2,8 @@
 #define _rbfm_h_
 
 #include "pfm.h"
+#include <vector>
+
 
 // Record ID
 typedef struct {
