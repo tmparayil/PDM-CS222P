@@ -25,6 +25,28 @@ bool file_exists(const std::string &fileName)
     return false;
 }
 
+void initialise(std::fstream &file)
+{
+    void* buffer = malloc(PAGE_SIZE);
+    int temp = HEADER_VAL;
+    int recordNum = 0;
+    int readCount = 0;
+    int writeCount = 0;
+    int appendCount = 0;
+
+    // First time creation of hidden page
+    memcpy((char*)buffer,(char*)&temp,HEADER_SIZE);
+    memcpy((char*)buffer + HEADER_SIZE,(char*)&recordNum, sizeof(int));
+    memcpy((char*) buffer + HEADER_SIZE + sizeof(int),(char*)&readCount, sizeof(int));
+    memcpy((char*)buffer + HEADER_SIZE + 2 * sizeof(int),(char*)&writeCount, sizeof(int));
+    memcpy((char*)buffer + HEADER_SIZE + 3 * sizeof(int),(char*)&appendCount, sizeof(int));
+
+    file.seekp(0,std::ios_base::beg);
+    file.write((char*)buffer,PAGE_SIZE);
+    file.seekp(0,std::ios_base::beg);
+    free(buffer);
+}
+
 RC PagedFileManager::createFile(const std::string &fileName) {
 
     if(file_exists(fileName))
@@ -36,6 +58,8 @@ RC PagedFileManager::createFile(const std::string &fileName) {
         std::cout<<"Error in creating the file"<<std::endl;
         return -1;
     }
+
+    initialise(newFile);
     newFile.close();
     return 0;
 }
@@ -52,12 +76,6 @@ RC PagedFileManager::destroyFile(const std::string &fileName) {
 }
 
 RC PagedFileManager::openFile(const std::string &fileName, FileHandle &fileHandle) {
-
-    if(fileHandle.getFile() != nullptr)
-    {
-        std::cout<<"Already file stream is open with this handle"<<std::endl;
-        return -1;
-    }
 
     if(file_exists(fileName)) {
         fileHandle.setFile(const_cast<std::string &>(fileName));
@@ -80,9 +98,6 @@ RC PagedFileManager::closeFile(FileHandle &fileHandle) {
 }
 
 FileHandle::FileHandle() {
-    readPageCounter = 0;
-    writePageCounter = 0;
-    appendPageCounter = 0;
     file;
 }
 
@@ -114,17 +129,24 @@ RC FileHandle::readPage(PageNum pageNum, void *data) {
 
     if(!check_file_stream())
         return -1;
-  
+
     if(pageNum >= FileHandle::getNumberOfPages())
     {
         return -1;
     }
 
-    int offset = pageNum * PAGE_SIZE;
-    file->seekg(offset,file->beg);
+    int offset = (pageNum + 1) * PAGE_SIZE;
+    file->seekg(offset,std::ios_base::beg);
     file->read((char*)data, PAGE_SIZE);
-    file->seekg(0,file->beg);
-    readPageCounter++;
+    file->seekg(0,std::ios_base::beg);
+
+    int readCounter;
+    file->seekg(HEADER_SIZE + sizeof(int),std::ios_base::beg);
+    file->read((char*)&readCounter, sizeof(int));
+    readCounter++;
+    file->seekp(HEADER_SIZE + sizeof(int),std::ios_base::beg);
+    file->write((char*)&readCounter, sizeof(int));
+    file->seekp(0,std::ios_base::beg);
     return 0;
 }
 
@@ -133,15 +155,21 @@ RC FileHandle::writePage(PageNum pageNum, const void *data) {
     if (!check_file_stream())
         return -1;
 
-    if (pageNum >= getNumberOfPages())
+    if (pageNum >= FileHandle::getNumberOfPages())
         return -1;
 
-    int offset = pageNum * PAGE_SIZE;
+    int offset = (pageNum + 1) * PAGE_SIZE;
     file->seekp(offset, std::ios_base::beg);
     file->write((char *)data, PAGE_SIZE);
     file->seekp(0, std::ios_base::beg);
 
-    writePageCounter++;
+    int writeCounter;
+    file->seekg(HEADER_SIZE + 2 * sizeof(int),std::ios_base::beg);
+    file->read((char*)&writeCounter, sizeof(int));
+    writeCounter++;
+    file->seekp(HEADER_SIZE + 2 * sizeof(int),std::ios_base::beg);
+    file->write((char*)&writeCounter, sizeof(int));
+    file->seekp(0,std::ios_base::beg);
     return 0;
 }
 
@@ -153,24 +181,60 @@ RC FileHandle::appendPage(const void *data) {
     file->seekp(0,std::ios_base::end);
     file->write((char*)data, PAGE_SIZE);
     file->seekp(0,std::ios_base::beg);
-    appendPageCounter++;
+
+    //Update total pages as well
+    int totalPages = 0;
+    int appendCounter;
+
+    file->seekg(HEADER_SIZE,std::ios_base::beg);
+    file->read((char*)&totalPages, sizeof(int));
+    file->seekg(HEADER_SIZE + 3 * sizeof(int),std::ios_base::beg);
+    file->read((char*)&appendCounter, sizeof(int));
+    totalPages++;
+    appendCounter++;
+    file->seekp(HEADER_SIZE,std::ios_base::beg);
+    file->write((char*)&totalPages, sizeof(int));
+    file->seekp(HEADER_SIZE + 3 * sizeof(int),std::ios_base::beg);
+    file->write((char*)&appendCounter, sizeof(int));
+    file->seekp(0,std::ios_base::beg);
+
     return 0;
 }
 
 unsigned FileHandle::getNumberOfPages() {
 
-    file->seekg(0,std::ios_base::end);
-    int length = file->tellg();
+    int pages;
+    file->seekg(HEADER_SIZE,std::ios_base::beg);
+    file->read((char*)&pages, sizeof(int));
     file->seekg(0,std::ios_base::beg);
-    int pages = length / PAGE_SIZE;
 
     return pages;
 }
 
 RC FileHandle::collectCounterValues(unsigned &readPageCount, unsigned &writePageCount, unsigned &appendPageCount) {
 
-    readPageCount = readPageCounter;
-    writePageCount = writePageCounter;
-    appendPageCount = appendPageCounter;
+    void* buffer = malloc(PAGE_SIZE);
+    file->seekg(0,std::ios_base::beg);
+    file->read((char*)buffer,PAGE_SIZE);
+
+    int readPage , writePage , appendPage;
+
+    memcpy((char*)&readPage,(char*)buffer + HEADER_SIZE + sizeof(int), sizeof(int));
+    memcpy((char*)&writePage,(char*)buffer + HEADER_SIZE + 2 * sizeof(int), sizeof(int));
+    memcpy((char*)&appendPage,(char*)buffer + HEADER_SIZE + 3 * sizeof(int), sizeof(int));
+
+    readPageCount = readPage;
+    writePageCount = writePage;
+    appendPageCount = appendPage;
+
+    memcpy((char*)buffer + HEADER_SIZE + sizeof(int),(char*)&readPage, sizeof(int));
+    memcpy((char*)buffer + HEADER_SIZE + 2 * sizeof(int),(char*)&writePage, sizeof(int));
+    memcpy((char*)buffer + HEADER_SIZE + 3 * sizeof(int),(char*)&appendPage, sizeof(int));
+
+    file->seekp(0,std::ios_base::beg);
+    file->write((char*)buffer,PAGE_SIZE);
+    file->seekp(0,std::ios_base::beg);
+
+    free(buffer);
     return 0;
 }
