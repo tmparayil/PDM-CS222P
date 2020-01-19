@@ -1,5 +1,6 @@
 #include "pfm.h"
 #include "test_util.h"
+#include "pfm.cc"
 
 using namespace std;
 

@@ -6,6 +6,7 @@
 #include <vector>
 #include <climits>
 #include <cstring>
+#include <cstdlib>
 
 #include "pfm.h"
 #include "rbfm.h"

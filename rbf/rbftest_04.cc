@@ -1,5 +1,6 @@
 #include "pfm.h"
 #include "test_util.h"
+#include "pfm.cc"
 
 int RBFTest_4(PagedFileManager &pfm) {
     // Functions Tested:

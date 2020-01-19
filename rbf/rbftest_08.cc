@@ -1,6 +1,8 @@
 #include "pfm.h"
 #include "rbfm.h"
 #include "test_util.h"
+#include "rbfm.cc"
+#include "pfm.cc"
 
 int RBFTest_8(RecordBasedFileManager &rbfm) {
     // Functions tested
