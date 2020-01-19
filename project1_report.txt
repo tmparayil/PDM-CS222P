@@ -1,28 +1,115 @@
 1. Basic information
-Team #:
-Github Repo Link:
-Student 1 UCI NetID:
-Student 1 Name:
-Student 2 UCI NetID (if applicable):
-Student 2 Name (if applicable):
+Team #: 7
+Github Repo Link: https://github.com/UCI-Chenli-teaching/cs222p-winter20-team-7.git
+Student 1 UCI NetID: tparayil
+Student 1 Name: Thomas Parayil
+Student 2 UCI NetID: shahap1
+Student 2 Name: Aneri Shah
+
+
 
 
 2. Internal Record Format
+
+
 - Show your record format design and describe how your design satisfies O(1) field access.
 
+
+  ---------------------------------------------------------------------------------------------------------------------------
+  | Ptr           | Ptr           |Ptr          |  Null   |  Varchar | Actual   | TypeInt |  TypeReal  |
+  | to end        | to end        |to end       | field   |  length  | data     | data    |  data      |
+  | of 1st field  | of 2nd field  |of 3rd field | info    |  info    |          |         |            |
+  ----------------------------------------------------------------------------------------------------------------------------
+
+
+
+Each record has space allocated at the start that contains Null byte information. It indicates which bytes or Record Descriptors have NULL values. The amount of space is calculated by the formula Null information size = ceil(number of fields in the record / 8 ) .
+The  fields in the record have a pointer at the start of the record that points to the end of that particular field(4 bytes each). Thus, we can access any field value using this information in O(1) time complexity.
+As shown above, if we have a record with 3 fields and their types are : VarChar, Int and Real respectively. We will require ceil(3 / 8) = 1 byte for the record. If some field has Null value, the corresponding bit in the Null_byte_info will be set to 1 and no extra space is allocated to that field and the pointer value for that field will be set to -1. If we want to access the field with TypeInt data, we can directly access it in constant time complexity by using the pointer to the 2nd field.
 
 
 - Describe how you store a VarChar field.
 
 
+If the value is not NULL, we allocate space depending upon the type of the field. For a VarChar field, we first store the length of the characters in a space of 4 bytes (sizeof(int)) and then the required space for the actual characters is allocated. 
+For TypeReal and TypeInt fields, we use 4 bytes to store their respective values.
+
+
+
+
+
 
 3. Page Format
+
+
 - Show your page format design
+
+ 
+ --------------------------------------------------------------------------------------------
+ |  free  |     Records    stored                                     			    |
+ | space  |										    |	
+ | info	  |										    |
+ |------------------------------------------------------------------------------------------|
+ | 											    |
+ |               									    |
+ |											    |
+ |											    |
+ |											    |	
+ |											    |
+ |			Free Space							    |
+ |											    |
+ |											    |
+ |											    |
+ |											    |	
+ |											    |
+ |											    |
+ |											    |	
+ | 											    |
+ |											    |	
+ |											    |
+ |											    |	
+ |------------------------------------------------------------------------------------------|	
+ |	slot		   |  slot2 | slot2 | slot1  | slot1   |last_slot    | last_inserted|
+ | 	directory          |length  | offset| length | offset  |    info     |   record ptr |
+ ---------------------------------------------------------------------------------------------
+
+
+
+
+The starting 4 bytes of the page contains information about the amount of free space available on that particular page. After this, the space can be allocated for storing records. The records are stored from left to right. The bottom of the page contains slot directory that contains slot information. For each slot we store it’s offset and length(4 bytes each). Therefore, each slot information requires 8 bytes information to be entered in the slot directory. The last 8 bytes contain the offsets for the last inserted slot and last inserted record (4 bytes each).The slot directory grows from right to left.
+The space between last inserted record and last inserted slot is the free space on that particular page and can be allocated to new records.
+
 
 
 
 4. Page Management
+
+
 - Show your algorithm of finding next available-space page when inserting a record.
+
+
+The first four bytes of each page contains the size of contiguous free space available on that page. We traverse through each page and read that free space information. If the free space is greater than or equal to the space required for the record, we store the record there. 
+
+
+ // Looping through all the pages 
+
+
+        for(int i=totalPages - 1;i >= 0;i--)
+        {
+            fileHandle.readPage(i,aPage);
+            memcpy((char*)&freeSize,(char*)aPage, sizeof(int));
+
+
+            if(freeSize >= newSize + 2* sizeof(int))
+            {
+                page = i;
+                gotPage = true;
+                break;
+            }
+        }
+
+
+
 
 
 
@@ -30,12 +117,57 @@ Student 2 Name (if applicable):
 
 
 
+ --------------------------------------------------------------------------------------------
+ |  header  | #    |  ReadPageCount   |   WritePageCount |   AppendPageCount |              |
+ | value    |pages |		      |			 |		     | 	            |	
+ |	    |	   |		      |			 |		     |		    |
+ |------------------------------------------------------------------------------------------|
+ | 											    |
+ |               									    |
+ |											    |
+ |											    |
+ |											    |	
+ |											    |
+ |			Hidden Page							    |
+ |											    |
+ |											    |
+ |											    |
+ |											    |	
+ |											    |
+ |											    |
+ |											    |	
+ | 											    |
+ |											    |	
+ |											    |
+ |											    |	
+ |  											    |
+ --------------------------------------------------------------------------------------------
+
+
+
+
+The hidden page contains a header value(4 bytes) that indicates that the current page is a hidden page. After this we have the number of pages, Read page count, Write page count and Append page count values respectively (4 bytes each).
+
+
+
+
 5. Implementation Detail
+
+
 - Other implementation details goes here.
 
 
+The PagedFileManager files (pfm.h and pfm.cc) contains all the file and page related function declarations and definitions. Rbf.cc and rbf.h contains the declarations and definitions for record based operations. We implement insertRecord, readRecord and printRecord functions as part of project1.
+
+
+ For insertRecord, we first get the record size that includes the space required for the respective field pointers and the data. The function encodeRecord prepares the record to be stored by appending the data given with the required offsets for each field of the pointer, thus facilitating O(1) field access. Then, we check for free space on each page and when we find a page that has the required available free space, we insert that record on that page. If there is no page with the required free space, we append a new empty page and insert the record there.After inserting the encoded record into a page, we then update the rid.pageNum and rid.slotNum .The slot offset and length are also stored at the bottom of the page as shown in the page format above. 
+
+
+For readRecord function, we first get that particular page and calculate the offset for that record by using the slot offset and slot length information at the bottom of the page. The data is then decoded by using the decodeRecord function that decodes the encoded data so that it excludes the pointers we added during the encodeRecord function.
+
+
+The printRecord function uses the null field information at the start of the data and traverses through the recordDescriptor vector and prints the values for each recordDescriptor. NULL values are detected by a 1 present in the bit of the null field information bytes.
+ 
+
 
 6. Other (optional)
-- Freely use this section to tell us about things that are related to the project 1, but not related to the other sections (optional)
-
-
