@@ -217,7 +217,7 @@ void RecordBasedFileManager::decodeRecord(FileHandle &fileHandle,const std::vect
     char* bitInfo = new char[nullInfo];
     memset(bitInfo, 0 , nullInfo);
     int recSize = RecordBasedFileManager::getEncodedRecordSize(data,recordDescriptor);
-    int newSize = recSize - (recordDescriptor.size() * sizeof(int)) + nullInfo;
+    int newSize = recSize > 0 ? recSize - (recordDescriptor.size() * sizeof(int)) + nullInfo : nullInfo;
     void* record = malloc(newSize);
     for(int i=0;i<recordDescriptor.size();i++)
     {
@@ -227,7 +227,7 @@ void RecordBasedFileManager::decodeRecord(FileHandle &fileHandle,const std::vect
         if(temp == -1)
             bitInfo[i/CHAR_BIT] = bitInfo[i / CHAR_BIT] | (1 << (bitShift));
     }
-    int dataSize = recSize - (recordDescriptor.size() * sizeof(int));
+    int dataSize = recSize > 0 ? recSize - (recordDescriptor.size() * sizeof(int)) : 0;
     memcpy((char*)record,bitInfo,nullInfo);
     memcpy((char*)record + nullInfo,(char*)data + (recordDescriptor.size() * sizeof(int)),dataSize);
     memcpy(returnedData,record,newSize);
