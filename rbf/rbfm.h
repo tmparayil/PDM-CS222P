@@ -110,6 +110,9 @@ public:
     int getRecSize(const void *data, const std::vector<Attribute> &recordDescriptor);
     void setPage(FileHandle &fileHandle);
     void initialise(FileHandle &fileHandle,int pageNum);
+    void encodeRecord(FileHandle &fileHandle,const std::vector<Attribute> &recordDescriptor,const void* data,void* returnedData);
+    void decodeRecord(FileHandle &fileHandle,const std::vector<Attribute> &recordDescriptor,const void* data,void* returnedData);
+    int getEncodedRecordSize(const void *data, const std::vector<Attribute> &recordDescriptor);
     // End of helper functions
 
     /*****************************************************************************************************
