@@ -113,6 +113,127 @@ void RecordBasedFileManager::initialise(FileHandle &fileHandle,int pageNum) {
     RecordBasedFileManager::setPage(fileHandle);
 }
 
+
+void RecordBasedFileManager::encodeRecord(FileHandle &fileHandle,const std::vector<Attribute> &recordDescriptor,const void* data,void* returnedData){
+
+    int valNotPresent = -1;
+    int offset = 0;
+    int size = getRecSize(data,recordDescriptor);
+    int nullInfo = ceil((double) recordDescriptor.size() / CHAR_BIT);
+    char* bitInfo = new char[nullInfo];
+    memset(bitInfo, 0 , nullInfo);
+    memcpy((char*)bitInfo,(char*)data, nullInfo);
+    offset += nullInfo;
+    //Updating the size of the record to include offsets and remove nullBitInfo
+    size = size - nullInfo + recordDescriptor.size()* sizeof(int);
+    void* record = malloc(size);
+
+
+
+    int dataOffset = recordDescriptor.size()* sizeof(int);
+    int slotOffset = 0;
+
+    for(int itr = 0 ;itr < recordDescriptor.size();itr++) {
+        int bitShift = CHAR_BIT - 1 - itr % CHAR_BIT;
+        int checkNullBit = bitInfo[itr / CHAR_BIT] & (1 << (bitShift));
+        switch(recordDescriptor[itr].type)
+        {
+
+            case TypeInt:
+                if(!checkNullBit)
+                {
+                    memcpy((char*)record + dataOffset,(char*)data + offset, sizeof(int));
+                    dataOffset += sizeof(int);
+                    offset += sizeof(int);
+                    memcpy((char*)record + slotOffset,(char*)&dataOffset, sizeof(int));
+                    slotOffset += sizeof(int);
+                } else
+                {
+                    memcpy((char*)record + slotOffset,(char*)&valNotPresent, sizeof(int));
+                    slotOffset += sizeof(int);
+                }
+                break;
+            case TypeReal:
+                if(!checkNullBit) {
+                    memcpy((char*)record + dataOffset,(char*)data + offset, sizeof(int));
+                    dataOffset += sizeof(float);
+                    offset += sizeof(float);
+
+                    memcpy((char*)record + slotOffset,(char*)&dataOffset, sizeof(int));
+                    slotOffset += sizeof(float);
+                } else
+                {
+                    memcpy((char*)record + slotOffset,(char*)&valNotPresent, sizeof(int));
+                    slotOffset += sizeof(int);
+                }
+                break;
+            case TypeVarChar:
+                int length;
+                if(!checkNullBit)
+                {
+                    memcpy((char*)&length,(char*)data + offset, sizeof(int));
+                    offset += sizeof(int);
+
+                    memcpy((char*)record + dataOffset,(char*)&length, sizeof(int));
+                    dataOffset += sizeof(int);
+                    memcpy((char*)record + dataOffset,(char*)data + offset,length);
+                    dataOffset += length;
+                    offset += length;
+
+                    memcpy((char*)record + slotOffset,(char*)&dataOffset, sizeof(int));
+                    slotOffset += sizeof(int);
+                } else
+                {
+                    memcpy((char*)record + slotOffset,(char*)&valNotPresent, sizeof(int));
+                    slotOffset += sizeof(int);
+                }
+                break;
+        }
+    }
+    memcpy(returnedData,record,size);
+    free(record);
+}
+
+int RecordBasedFileManager::getEncodedRecordSize(const void *data, const std::vector<Attribute> &recordDescriptor){
+
+    int lastPtr;
+    int numberOfSlots = recordDescriptor.size();
+    int offset = 0;
+    for(int i = numberOfSlots - 1;i >= 0; i--)
+    {
+        offset = i * sizeof(int);
+        memcpy((char*)&lastPtr,(char*)data + offset, sizeof(int));
+        if(lastPtr != -1)
+        {
+            return lastPtr;
+        }
+    }
+    return 0;
+}
+
+void RecordBasedFileManager::decodeRecord(FileHandle &fileHandle,const std::vector<Attribute> &recordDescriptor,const void* data,void* returnedData){
+
+    int nullInfo = ceil((double) recordDescriptor.size() / CHAR_BIT);
+    char* bitInfo = new char[nullInfo];
+    memset(bitInfo, 0 , nullInfo);
+    int recSize = RecordBasedFileManager::getEncodedRecordSize(data,recordDescriptor);
+    int newSize = recSize - (recordDescriptor.size() * sizeof(int)) + nullInfo;
+    void* record = malloc(newSize);
+    for(int i=0;i<recordDescriptor.size();i++)
+    {
+        int temp;
+        memcpy((char*)&temp,(char*)data + (sizeof(int) * i), sizeof(int));
+        int bitShift = CHAR_BIT - 1 - i%CHAR_BIT;
+        if(temp == -1)
+            bitInfo[i/CHAR_BIT] = bitInfo[i / CHAR_BIT] | (1 << (bitShift));
+    }
+    int dataSize = recSize - (recordDescriptor.size() * sizeof(int));
+    memcpy((char*)record,bitInfo,nullInfo);
+    memcpy((char*)record + nullInfo,(char*)data + (recordDescriptor.size() * sizeof(int)),dataSize);
+    memcpy(returnedData,record,newSize);
+    free(record);
+}
+
 /**
  * Insert a record into the file
  *
@@ -131,6 +252,11 @@ void RecordBasedFileManager::initialise(FileHandle &fileHandle,int pageNum) {
 RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
                                         const void *data, RID &rid) {
     uint32_t recSize = getRecSize(data,recordDescriptor);
+    int nullInfo = ceil((double) recordDescriptor.size() / CHAR_BIT);
+    int newSize = recSize - nullInfo + recordDescriptor.size()* sizeof(int);
+    void* record = malloc(newSize);
+
+    RecordBasedFileManager::encodeRecord(fileHandle,recordDescriptor,data,record);
     int totalPages=fileHandle.getNumberOfPages();
 
     int freeSize = 0;
@@ -143,12 +269,12 @@ RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle, const std::vecto
     else{
         void* aPage = malloc(PAGE_SIZE);
         // Looping through all the pages in hidden directory
-        for(int i=0;i<totalPages;i++)
+        for(int i=totalPages - 1;i >= 0;i--)
         {
             fileHandle.readPage(i,aPage);
             memcpy((char*)&freeSize,(char*)aPage, sizeof(int));
 
-            if(freeSize >= recSize + 2* sizeof(int))
+            if(freeSize >= newSize + 2* sizeof(int))
             {
                 page = i;
                 gotPage = true;
@@ -185,13 +311,13 @@ RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle, const std::vecto
     rid.slotNum = slotNumber;
 
     // Insert new record slot in slot directory
-    memcpy((char*)buffer + slotOffset - sizeof(int),(char*)&recSize, sizeof(int));
+    memcpy((char*)buffer + slotOffset - sizeof(int),(char*)&newSize, sizeof(int));
     memcpy((char*)buffer + slotOffset - 2 * sizeof(int),(char*)&recordOffset, sizeof(int));
     slotOffset -= 2 * sizeof(int);
 
     // Inserting record
-    memcpy((char*)buffer + recordOffset,(char*)data,recSize);
-    recordOffset += recSize;
+    memcpy((char*)buffer + recordOffset,(char*)record,newSize);
+    recordOffset += newSize;
 
     // Updating slot-record pointers after insert
     memcpy((char*)buffer + ptrOffsets,(char*)&recordOffset, sizeof(int));
@@ -216,8 +342,14 @@ RC RecordBasedFileManager::readRecord(FileHandle &fileHandle, const std::vector<
     memcpy((char*)&slotOffset,(char*)buffer + offset, sizeof(int));
     memcpy((char*)&length,(char*)buffer + offset + sizeof(int), sizeof(int));
 
-    memcpy(data,(char*)buffer + slotOffset , length);
+    int nullInfo = ceil((double) recordDescriptor.size() / CHAR_BIT);
+    int newSize = length - (recordDescriptor.size() * sizeof(int)) + nullInfo;
+    void* record = malloc(newSize);
+
+    RecordBasedFileManager::decodeRecord(fileHandle,recordDescriptor,(char*)buffer + slotOffset,record);
+    memcpy(data,record,newSize);
     free(buffer);
+    free(record);
     return 0;
 }
 
