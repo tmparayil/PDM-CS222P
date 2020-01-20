@@ -16,16 +16,15 @@ Student 2 Name: Aneri Shah
 
 
   ---------------------------------------------------------------------------------------------------------------------------
-  | Ptr           | Ptr           |Ptr          |  Null   |  Varchar | Actual   | TypeInt |  TypeReal  |
-  | to end        | to end        |to end       | field   |  length  | data     | data    |  data      |
-  | of 1st field  | of 2nd field  |of 3rd field | info    |  info    |          |         |            |
+  | Ptr           | Ptr           |Ptr             |  Varchar | Actual   | TypeInt |  TypeReal  |
+  | to end        | to end        |to end          |  length  | data     | data    |  data      |
+  | of 1st field  | of 2nd field  |of 3rd field    |  info    |          |         |            |
   ----------------------------------------------------------------------------------------------------------------------------
 
 
 
-Each record has space allocated at the start that contains Null byte information. It indicates which bytes or Record Descriptors have NULL values. The amount of space is calculated by the formula Null information size = ceil(number of fields in the record / 8 ) .
 The  fields in the record have a pointer at the start of the record that points to the end of that particular field(4 bytes each). Thus, we can access any field value using this information in O(1) time complexity.
-As shown above, if we have a record with 3 fields and their types are : VarChar, Int and Real respectively. We will require ceil(3 / 8) = 1 byte for the record. If some field has Null value, the corresponding bit in the Null_byte_info will be set to 1 and no extra space is allocated to that field and the pointer value for that field will be set to -1. If we want to access the field with TypeInt data, we can directly access it in constant time complexity by using the pointer to the 2nd field.
+As shown above, if we have a record with 3 fields and their types are : VarChar, Int and Real respectively. If some field has Null value, no extra space is allocated to that field and the pointer value for that field will be set to -1. If we want to access the field with TypeInt data, we can directly access it in constant time complexity by using the pointer to the 2nd field.
 
 
 - Describe how you store a VarChar field.
@@ -70,7 +69,7 @@ For TypeReal and TypeInt fields, we use 4 bytes to store their respective values
  |											    |	
  |------------------------------------------------------------------------------------------|	
  |	slot		   |  slot2 | slot2 | slot1  | slot1   |last_slot    | last_inserted|
- | 	directory          |length  | offset| length | offset  |    info     |   record ptr |
+ | 	directory          |length  | offset| length | offset  |    ptr      |   record ptr |
  ---------------------------------------------------------------------------------------------
 
 
@@ -88,7 +87,8 @@ The space between last inserted record and last inserted slot is the free space 
 - Show your algorithm of finding next available-space page when inserting a record.
 
 
-The first four bytes of each page contains the size of contiguous free space available on that page. We traverse through each page and read that free space information. If the free space is greater than or equal to the space required for the record, we store the record there. 
+The first four bytes of each page contains the size of contiguous free space available on that page. We traverse through each page from the end i.e in descending order as the possibility of finding free space at the pages at the end would be more. We read the free space information on that page and if the free space is greater than or equal to the space required for the record, we store the record there. 
+If no page has the required space, we append a new empty page there and store the record there.
 
 
  // Looping through all the pages 
@@ -121,7 +121,7 @@ The first four bytes of each page contains the size of contiguous free space ava
  |  header  | #    |  ReadPageCount   |   WritePageCount |   AppendPageCount |              |
  | value    |pages |		      |			 |		     | 	            |	
  |	    |	   |		      |			 |		     |		    |
- |------------------------------------------------------------------------------------------|
+ |---------------------------------------------------------------------------		    |
  | 											    |
  |               									    |
  |											    |
