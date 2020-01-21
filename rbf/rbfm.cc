@@ -26,6 +26,7 @@ RC RecordBasedFileManager::createFile(const std::string &fileName) {
         return -1;
     FileHandle fileHandle;
     pfm.openFile(fileName.c_str(),fileHandle);
+    pfm.closeFile(fileHandle);
     return 0;
 }
 
@@ -191,6 +192,7 @@ void RecordBasedFileManager::encodeRecord(FileHandle &fileHandle,const std::vect
     }
     memcpy(returnedData,record,size);
     free(record);
+    delete[] bitInfo;
 }
 
 int RecordBasedFileManager::getEncodedRecordSize(const void *data, const std::vector<Attribute> &recordDescriptor){
@@ -231,6 +233,7 @@ void RecordBasedFileManager::decodeRecord(FileHandle &fileHandle,const std::vect
     memcpy((char*)record + nullInfo,(char*)data + (recordDescriptor.size() * sizeof(int)),dataSize);
     memcpy(returnedData,record,newSize);
     free(record);
+    delete[] bitInfo;
 }
 
 /**
@@ -328,6 +331,7 @@ RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle, const std::vecto
 
     fileHandle.writePage(page,buffer);
     free(buffer);
+    free(record);
     return 0;
 }
 
@@ -408,7 +412,7 @@ RC RecordBasedFileManager::printRecord(const std::vector<Attribute> &recordDescr
                     std::cout<<recordDescriptor[itr].name<<":\t";
                     std::cout<<tempString<<"\t";
                     offset += length;
-
+                    delete[] tempString;
                 } else
                 {
                     std::cout<<recordDescriptor[itr].name<<":\tNULL"<<"\t";
@@ -417,6 +421,7 @@ RC RecordBasedFileManager::printRecord(const std::vector<Attribute> &recordDescr
         }
     }
     std::cout<<std::endl;
+    delete[] bitInfo;
     return 0;
 }
 
