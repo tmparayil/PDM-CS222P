@@ -474,10 +474,11 @@ RC RecordBasedFileManager::deleteRecord(FileHandle &fileHandle, const std::vecto
                 memcpy((char*)page + offset,(char*)&recPtr, sizeof(int));
             }
         }
-    } else {
+    } 
+    //else {
          recordOffset -= recordLength;
          memcpy((char *) page + ptrOffsets, &recordOffset, sizeof(int));
-    }
+   // }
 
     //Update free space info
     freeSpace += recordLength;
