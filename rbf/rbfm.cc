@@ -587,5 +587,344 @@ RC RecordBasedFileManager::deleteRecord(FileHandle &fileHandle, const std::vecto
  RC RecordBasedFileManager::scan(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
                                  const std::string &conditionAttribute, const CompOp compOp, const void *value,
                                  const std::vector<std::string> &attributeNames, RBFM_ScanIterator &rbfm_ScanIterator) {
-     return -1;
+
+     //Read total number of pages
+     //For each page -> read total number of slots
+     //For each record -> check condition
+     //If link -> store in HashSet
+
+     rbfm_ScanIterator.fileHandle = fileHandle;
+     rbfm_ScanIterator.recordDescriptor = recordDescriptor;
+     rbfm_ScanIterator.comparisonOperator = compOp;
+     rbfm_ScanIterator.attributeNames = attributeNames;
+
+
+     getConditionAttributeDetails(recordDescriptor,conditionAttribute,rbfm_ScanIterator);
+
+     if(compOp != NO_OP)
+     {
+         getConditionValue(rbfm_ScanIterator,value);
+     }
+
+     rbfm_ScanIterator.currRID.pageNum = 0;
+     rbfm_ScanIterator.currRID.slotNum = 0;
+
+     return 0;
  }
+
+/**
+ * returns -2 if there is no attribute specified in the scan operation
+ * returns -1 if current record does not have any record which matches the given attribute name
+ * returns index of attribute for correct scenario :: starts from 0
+ *
+ * @param recordDescriptor
+ * @param conditionAttribute
+ * @param rbfmScanIterator
+ * @return
+ */
+ RC RecordBasedFileManager::getConditionAttributeDetails(const std::vector<Attribute> &recordDescriptor, const std::string &conditionAttribute, RBFM_ScanIterator &rbfmScanIterator) {
+
+    // No attribute specified in the where clause
+    if(conditionAttribute == "")
+    {
+        rbfmScanIterator.conditionAttributeId = -2;
+        return 0;
+    }
+
+    // default
+    rbfmScanIterator.conditionAttributeId = -1;
+
+    for(int i=0;i < recordDescriptor.size(); i++)
+    {
+        if(recordDescriptor[i].name == conditionAttribute)
+        {
+            rbfmScanIterator.conditionAttributeId = i;
+            rbfmScanIterator.conditionAttributeType = recordDescriptor[i].type;
+            break;
+        }
+    }
+
+    return 0;
+}
+
+/**
+ * Storing the value to rbfm_ScanIterator.value
+ * For int/float -> malloc 4B and then store the value
+ * For varchar -> malloc 4B + length of varchar and store the offset + string
+ *
+ * @param rbfm_ScanIterator
+ * @param value
+ * @return
+ */
+RC RecordBasedFileManager::getConditionValue(RBFM_ScanIterator &rbfm_ScanIterator, const void *value) {
+
+     // Storing the string value with the length offset
+     if(rbfm_ScanIterator.conditionAttributeType == TypeVarChar)
+     {
+         int length;
+         memcpy((char*)&length,(char*)value, sizeof(int));
+         rbfm_ScanIterator.value = malloc(length + sizeof(int));
+         memcpy(rbfm_ScanIterator.value,value,(length + sizeof(int)));
+     } else
+     {
+         rbfm_ScanIterator.value = malloc(sizeof(int));
+         memcpy(rbfm_ScanIterator.value,value, sizeof(int));
+     }
+ }
+
+ /**
+  * Checks if current page of RID is readable
+  * Check if slot number provided is valid for the page
+  *     -> if not, return RBFM_EOF
+  *     -> if yes, read the record and check if for the attribute to be compared, the value matches the condition
+  * @param rid
+  * @param data
+  * @return
+  */
+ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data) {
+
+    int returnVal = 0;
+    int MAX_RC_SIZE = PAGE_SIZE - (3 * sizeof(int));
+    void* buffer = malloc(PAGE_SIZE);
+    void* record = malloc(MAX_RC_SIZE);
+
+
+    int totalPages = fileHandle.getNumberOfPages();
+
+    if(fileHandle.readPage(currRID.pageNum,buffer) != 0)
+    {
+        free(buffer);
+        free(record);
+        return RBFM_EOF;
+    }
+
+    int ptrOffsets = PAGE_SIZE - (2 * sizeof(int));
+    int slotOffset;
+    memcpy((char*)&slotOffset,(char*)buffer + ptrOffsets, sizeof(int));
+
+    int numOfSlots = (ptrOffsets - slotOffset) / (2 * sizeof(int));
+
+    while(!validSlot(buffer,record))
+    {
+        currRID.slotNum++;
+        // >= for the corner case where the first assigned slot in a page = total number of slots in the page
+        if(currRID.slotNum >= numOfSlots)
+        {
+            currRID.pageNum++;
+            // >= for the corner case where the first assigned page number = total number of pages
+            if(currRID.pageNum >= totalPages)
+            {
+                returnVal = RBFM_EOF;
+                break;
+            }
+            currRID.slotNum = 0;
+            fileHandle.readPage(currRID.pageNum,buffer);
+        }
+    }
+    free(record);
+    free(buffer);
+    return returnVal;
+}
+
+
+
+RC RBFM_ScanIterator::validSlot(const void *buffer, void *record) {
+
+    if(!ridExistsInPage(buffer))
+    {
+        return false;
+    }
+    //Read the record in given page for the given RID
+    readRecordOnPageForRID(buffer,recordDescriptor,record);
+
+    return satisfyCondition(record);
+}
+
+
+
+bool RBFM_ScanIterator::ridExistsInPage(const void* buffer)
+{
+    int slotNum = currRID.slotNum;
+    int ptrOffsets = PAGE_SIZE - (2 * sizeof(int));
+    int slotOffset;
+    memcpy((char*)&slotOffset,(char*)buffer + ptrOffsets + sizeof(int), sizeof(int));
+
+    int totalSlots = (ptrOffsets - slotOffset) / (2 * sizeof(int));
+
+    if(slotNum > totalSlots)
+    {
+        return false;
+    }
+
+    int offset = ptrOffsets - (2 * slotNum * sizeof(int));
+    int length , recordOffset;
+    memcpy((char*)&recordOffset,(char*)buffer + offset, sizeof(int));
+    memcpy((char*)&length,(char*)buffer + offset + sizeof(int), sizeof(int));
+
+    if(recordOffset == -1 && length == -1)
+        return false;
+
+    return true;
+}
+
+
+RC RBFM_ScanIterator::readRecordOnPageForRID(const void* buffer,const std::vector<Attribute> recordDescriptor,void* record)
+{
+    int slotNum = currRID.slotNum;
+    int ptrOffsets = PAGE_SIZE - (2 * sizeof(int));
+    int slotOffset;
+    memcpy((char*)&slotOffset,(char*)buffer + ptrOffsets + sizeof(int), sizeof(int));
+
+    int totalSlots = (ptrOffsets - slotOffset) / (2 * sizeof(int));
+
+    if(slotNum > totalSlots)
+    {
+        return false;
+    }
+
+    int offset = ptrOffsets - (2 * slotNum * sizeof(int));
+    int length , recordOffset;
+    memcpy((char*)&recordOffset,(char*)buffer + offset, sizeof(int));
+    memcpy((char*)&length,(char*)buffer + offset + sizeof(int), sizeof(int));
+
+    memcpy(record,(char*)buffer + recordOffset,length);
+}
+
+RC RBFM_ScanIterator::satisfyCondition(const void *record) {
+
+    if(conditionAttributeType == TypeInt)
+    {
+        int recordValue;
+        int offset = sizeof(int) + (conditionAttributeId * sizeof(int));
+        int attribOffset;
+        memcpy((char*)&attribOffset,(char*)record + offset, sizeof(int));
+        if(attribOffset == -1)
+            return false;
+
+        memcpy((char*)&recordValue,(char*)record + attribOffset - sizeof(int), sizeof(int));
+        int compareValue;
+        memcpy((char*)&compareValue,value, sizeof(int));
+        return checkConditionInt(recordValue,compareValue,comparisonOperator);
+    }
+    else if(conditionAttributeType == TypeReal)
+    {
+        float recordValue;
+        int offset = sizeof(int) + (conditionAttributeId * sizeof(int));
+        int attribOffset;
+        memcpy((char*)&attribOffset,(char*)record + offset, sizeof(int));
+        if(attribOffset == -1)
+            return false;
+
+        memcpy((char*)&recordValue,(char*)record + attribOffset - sizeof(int), sizeof(int));
+        float compareValue;
+        memcpy((char*)&compareValue,value, sizeof(int));
+        return checkConditionFloat(recordValue,compareValue,comparisonOperator);
+    }
+    else if(conditionAttributeType == TypeVarChar)
+    {
+        // If conditionAttributeId = 0 --> first attribute
+        if(conditionAttributeId == 0)
+        {
+            int offset = sizeof(int);
+            int attribOffset;
+            memcpy((char*)&attribOffset,(char*)record + offset, sizeof(int));
+            if(attribOffset == -1)
+                return false;
+
+            offset = recordDescriptor.size()* sizeof(int) + sizeof(int);
+            int recordLength;
+            memcpy((char*)&recordLength,(char*)record + offset, sizeof(int));
+            char* tempString = new char[recordLength+1];
+            memcpy(tempString,(char*)record + offset + sizeof(int), recordLength);
+            tempString[recordLength] = '\0';
+            int length;
+            memcpy((char*)&length,(char*)value, sizeof(int));
+            char* compareString = new char[length+1];
+            memcpy(compareString,(char*)value + sizeof(int),length);
+            compareString[length] = '\0';
+
+            return checkConditionChar(tempString,compareString,comparisonOperator);
+        }
+        else
+        {
+            int offset = sizeof(int) + (conditionAttributeId * sizeof(int));
+            int attribOffset;
+            memcpy((char*)&attribOffset,(char*)record + offset, sizeof(int));
+            if(attribOffset == -1)
+                return false;
+
+            int prevOffset = offset - sizeof(int);
+            memcpy((char*)&attribOffset,(char*)record + prevOffset, sizeof(int));
+            while(attribOffset == -1)
+            {
+                if(prevOffset == sizeof(int))
+                {
+                    attribOffset = sizeof(int) + (recordDescriptor.size()* sizeof(int));
+                    break;
+                }
+                prevOffset -= sizeof(int);
+                memcpy((char*)&attribOffset,(char*)record + prevOffset, sizeof(int));
+            }
+
+            int recordLength;
+            memcpy((char*)&recordLength,(char*)record + attribOffset, sizeof(int));
+            char* tempString = new char[recordLength+1];
+            memcpy(tempString,(char*)record + attribOffset + sizeof(int), recordLength);
+            tempString[recordLength] = '\0';
+            int length;
+            memcpy((char*)&length,(char*)value, sizeof(int));
+            char* compareString = new char[length+1];
+            memcpy(compareString,(char*)value + sizeof(int),length);
+            compareString[length] = '\0';
+
+            return checkConditionChar(tempString,compareString,comparisonOperator);
+        }
+    }
+
+    return -1;
+}
+
+bool RBFM_ScanIterator::checkConditionInt(int recordValue, int compareValue, CompOp comparisonOperator) {
+    if(comparisonOperator == EQ_OP)
+        return (recordValue == compareValue);
+    else if(comparisonOperator == LT_OP)
+        return (recordValue < compareValue);
+    else if(comparisonOperator == LE_OP)
+        return (recordValue <= compareValue);
+    else if(comparisonOperator == GT_OP)
+        return (recordValue > compareValue);
+    else if(comparisonOperator == GE_OP)
+        return  (recordValue >= compareValue);
+    else if(comparisonOperator == NE_OP)
+        return (recordValue != compareValue);
+}
+
+bool RBFM_ScanIterator::checkConditionFloat(float recordValue, float compareValue, CompOp comparisonOperator) {
+    if(comparisonOperator == EQ_OP)
+        return (recordValue == compareValue);
+    else if(comparisonOperator == LT_OP)
+        return (recordValue < compareValue);
+    else if(comparisonOperator == LE_OP)
+        return (recordValue <= compareValue);
+    else if(comparisonOperator == GT_OP)
+        return (recordValue > compareValue);
+    else if(comparisonOperator == GE_OP)
+        return  (recordValue >= compareValue);
+    else if(comparisonOperator == NE_OP)
+        return (recordValue != compareValue);
+}
+
+bool RBFM_ScanIterator::checkConditionChar(char *recordValue, char *compareValue, CompOp comparisonOperator) {
+    if(comparisonOperator == EQ_OP)
+        return strcmp(recordValue,compareValue) == 0;
+    else if(comparisonOperator == LT_OP)
+        return strcmp(recordValue,compareValue) < 0;
+    else if(comparisonOperator == LE_OP)
+        return strcmp(recordValue,compareValue) <= 0;
+    else if(comparisonOperator == GT_OP)
+        return strcmp(recordValue,compareValue) > 0;
+    else if(comparisonOperator == GE_OP)
+        return strcmp(recordValue,compareValue) >= 0;
+    else if(comparisonOperator == NE_OP)
+        return strcmp(recordValue,compareValue) != 0;
+}

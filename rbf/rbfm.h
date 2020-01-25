@@ -57,12 +57,30 @@ public:
 
     ~RBFM_ScanIterator() = default;;
 
+    FileHandle fileHandle;
+    std::vector<Attribute> recordDescriptor;
+    CompOp comparisonOperator;
+    void* value;
+    int conditionAttributeId;
+    int conditionAttributeType;
+    std::vector<std::string> attributeNames;
+
+    RID currRID;
+
     // Never keep the results in the memory. When getNextRecord() is called,
     // a satisfying record needs to be fetched from the file.
     // "data" follows the same format as RecordBasedFileManager::insertRecord().
-    RC getNextRecord(RID &rid, void *data) { return RBFM_EOF; };
-
+    RC getNextRecord(RID &rid, void *data) ;
     RC close() { return -1; };
+
+private:
+    RC validSlot(const void* buffer,void* record);
+    bool ridExistsInPage(const void* buffer);
+    RC readRecordOnPageForRID(const void* buffer,const std::vector<Attribute> recordDescriptor,void* record);
+    RC satisfyCondition(const void* record);
+    bool checkConditionInt(int recordValue,int compareValue,CompOp comparisonOperator);
+    bool checkConditionFloat(float recordValue,float compareValue,CompOp comparisonOperator);
+    bool checkConditionChar(char* recordValue,char* compareValue,CompOp comparisonOperator);
 };
 
 class RecordBasedFileManager {
@@ -114,6 +132,9 @@ public:
     void decodeRecord(FileHandle &fileHandle,const std::vector<Attribute> &recordDescriptor,const void* data,void* returnedData);
     int getEncodedRecordSize(const void *data, const std::vector<Attribute> &recordDescriptor);
     int nextAvailableSlot(void* aPage,int slotPtrEnd, int slotPtrStart);
+
+    RC getConditionAttributeDetails(const std::vector<Attribute> &recordDescriptor,const std::string &conditionAttribute,RBFM_ScanIterator &rbfmScanIterator);
+    RC getConditionValue(RBFM_ScanIterator &rbfm_ScanIterator, const void *value);
     // End of helper functions
 
     /*****************************************************************************************************
