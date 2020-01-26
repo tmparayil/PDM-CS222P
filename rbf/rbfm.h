@@ -113,6 +113,7 @@ public:
     void encodeRecord(FileHandle &fileHandle,const std::vector<Attribute> &recordDescriptor,const void* data,void* returnedData);
     void decodeRecord(FileHandle &fileHandle,const std::vector<Attribute> &recordDescriptor,const void* data,void* returnedData);
     int getEncodedRecordSize(const void *data, const std::vector<Attribute> &recordDescriptor);
+    int nextAvailableSlot(void* aPage,int slotPtrEnd, int slotPtrStart);
     // End of helper functions
 
     /*****************************************************************************************************
