@@ -70,6 +70,11 @@ protected:
     RelationManager(const RelationManager &);                           // Prevent construction by copying
     RelationManager &operator=(const RelationManager &);                // Prevent assignment
 
+    RC initTables(std::vector<Attribute>& recordDescriptor);
+    RC initColumns(std::vector<Attribute>& recordDescriptor);
+    RC initTableRecord(void* record);
+    RC initColumnRecord(void* record);
+    RC prepareColumnRecord(int tableId,Attribute attribute,void* record,int pos);
 };
 
 #endif
