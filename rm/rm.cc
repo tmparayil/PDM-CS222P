@@ -96,16 +96,25 @@ RC RelationManager::initTableRecord(void *record) {
     char* tempString = "TABLES";
     int stringLength = 6;
 
+    int nullBitLength = 1;
+    char* bitInfo = new char[nullBitLength];
+    memset(bitInfo,0,nullBitLength);
+    // Null bit add
+    memcpy((char*)record,bitInfo,nullBitLength);
+    delete[] bitInfo;
+
     // Table - ID : 1
-    memcpy((char*)record,(char*)&temp, sizeof(int));
+    memcpy((char*)record + nullBitLength,(char*)&temp, sizeof(int));
     // Table-name : 6TABLES
-    memcpy((char*)record + sizeof(int),(char*)&stringLength, sizeof(int));
-    memcpy((char*)record + (2 * sizeof(int)),tempString,stringLength);
+    memcpy((char*)record + nullBitLength + sizeof(int),(char*)&stringLength, sizeof(int));
+    memcpy((char*)record + nullBitLength + (2 * sizeof(int)),tempString,stringLength);
     //File-name : 6TABLES
-    memcpy((char*)record + (2 * sizeof(int)) + stringLength,(char*)&stringLength, sizeof(int));
-    memcpy((char*)record + (2 * sizeof(int)) + stringLength + sizeof(int),tempString,stringLength);
+    memcpy((char*)record + nullBitLength + (2 * sizeof(int)) + stringLength,(char*)&stringLength, sizeof(int));
+    memcpy((char*)record + nullBitLength + (2 * sizeof(int)) + stringLength + sizeof(int),tempString,stringLength);
     //Version : 1
-    memcpy((char*)record + (2 * sizeof(int)) + stringLength + sizeof(int) + stringLength,(char*)&temp, sizeof(int));
+    memcpy((char*)record + nullBitLength + (2 * sizeof(int)) + stringLength + sizeof(int) + stringLength,(char*)&temp, sizeof(int));
+
+    //std::cout<<(2 * sizeof(int)) + stringLength + sizeof(int) + stringLength<<std::endl;
     return 0;
 }
 
@@ -116,40 +125,57 @@ RC RelationManager::initColumnRecord(void *record) {
     char* tempString = "COLUMNS";
     int stringLength = 7;
 
+    int nullBitLength = 1;
+    char* bitInfo = new char[nullBitLength];
+    memset(bitInfo,0,nullBitLength);
+    // Null bit add
+    memcpy((char*)record ,bitInfo,nullBitLength);
+    delete[] bitInfo;
+
     // Table - ID : 2
-    memcpy((char*)record,(char*)&temp, sizeof(int));
+    memcpy((char*)record + nullBitLength,(char*)&temp, sizeof(int));
     // Table-name : 7COLUMNS
-    memcpy((char*)record + sizeof(int),(char*)&stringLength, sizeof(int));
-    memcpy((char*)record + (2 * sizeof(int)),tempString,stringLength);
+    memcpy((char*)record + nullBitLength + sizeof(int),(char*)&stringLength, sizeof(int));
+    memcpy((char*)record + nullBitLength + (2 * sizeof(int)),tempString,stringLength);
     //File-name : 7COLUMNS
-    memcpy((char*)record + (2 * sizeof(int)) + stringLength,(char*)&stringLength, sizeof(int));
-    memcpy((char*)record + (2 * sizeof(int)) + stringLength + sizeof(int),tempString,stringLength);
+    memcpy((char*)record + nullBitLength + (2 * sizeof(int)) + stringLength,(char*)&stringLength, sizeof(int));
+    memcpy((char*)record + nullBitLength + (2 * sizeof(int)) + stringLength + sizeof(int),tempString,stringLength);
     //Version : 1
-    memcpy((char*)record + (2 * sizeof(int)) + stringLength + sizeof(int) + stringLength,(char*)&version, sizeof(int));
+    memcpy((char*)record + nullBitLength + (2 * sizeof(int)) + stringLength + sizeof(int) + stringLength,(char*)&version, sizeof(int));
 
     return 0;
 }
 
-RC RelationManager::prepareColumnRecord(int tableId, Attribute attribute, void *record, int pos) {
-    // Table - ID
-    memcpy((char*)record,(char*)tableId, sizeof(int));
-
+int RelationManager::prepareColumnRecord(int tableId, Attribute attribute, void *record, int pos) {
     std::string tempString = attribute.name;
     int length = tempString.length();
+
+    int nullBitLength = 1;
+    char* bitInfo = new char[nullBitLength];
+    memset(bitInfo,0,nullBitLength);
+    // Null bit add
+    memcpy((char*)record ,bitInfo,nullBitLength);
+    delete[] bitInfo;
+
+    // Table - ID
+    memcpy((char*)record + nullBitLength,(char*)&tableId, sizeof(int));
+
     // Column - name
-    memcpy((char*)record + sizeof(int),(char*)&length, sizeof(int));
-    memcpy((char*)record + (2* sizeof(int)),(char*)tempString.c_str(),length);
+    memcpy((char*)record + nullBitLength + sizeof(int),(char*)&length, sizeof(int));
+    memcpy((char*)record + nullBitLength + (2* sizeof(int)),(char*)tempString.c_str(),length);
+
     // Column - Type
-    memcpy((char*)record + (2* sizeof(int)) + length, (char*)&attribute.type, sizeof(int));
+    memcpy((char*)record + nullBitLength + (2* sizeof(int)) + length, (char*)&attribute.type, sizeof(int));
     // Column - length
-    memcpy((char*)record + (2* sizeof(int)) + length + sizeof(int), (char*)&attribute.length, sizeof(int));
+    memcpy((char*)record + nullBitLength + (2* sizeof(int)) + length + sizeof(int), (char*)&attribute.length, sizeof(int));
     // Column - position
-    memcpy((char*)record + (2* sizeof(int)) + length + (2 * sizeof(int)), (char*)&pos, sizeof(int));
+    memcpy((char*)record + nullBitLength + (2* sizeof(int)) + length + (2 * sizeof(int)), (char*)&pos, sizeof(int));
     int version = 1;
     // Version
-    memcpy((char*)record + (2* sizeof(int)) + length + (3 * sizeof(int)), (char*)&version, sizeof(int));
+    memcpy((char*)record + nullBitLength + (2* sizeof(int)) + length + (3 * sizeof(int)), (char*)&version, sizeof(int));
 
-    return 0;
+    int offset = nullBitLength + (2* sizeof(int)) + length + (4 * sizeof(int));
+    return offset;
 }
 
 RC RelationManager::createCatalog() {
@@ -163,14 +189,15 @@ RC RelationManager::createCatalog() {
     recordBasedFileManager.openFile("TABLES",fileHandle);
     std::vector<Attribute> recordDescriptor;
     initTables(recordDescriptor);
+
     // 4 + 4 + 6 + 4 + 6 + 4
-    void* tableRecord = malloc(28);
+    void* tableRecord = malloc(30);
     initTableRecord(tableRecord);
     RID rid;
     recordBasedFileManager.insertRecord(fileHandle,recordDescriptor,tableRecord,rid);
     free(tableRecord);
     // 4 + 4 + 7 + 4 + 7 + 4
-    void* columnRecord = malloc(30);
+    void* columnRecord = malloc(32);
     initColumnRecord(columnRecord);
     RID rid1;
     recordBasedFileManager.insertRecord(fileHandle,recordDescriptor,columnRecord,rid1);
@@ -183,23 +210,30 @@ RC RelationManager::createCatalog() {
     std::vector<Attribute> recordDescriptor1;
     initColumns(recordDescriptor1);
     // 4 + 4 + 15 + 4 + 4 + 4 + 4
-    void* record = malloc(39);
+    void* record = malloc(45);
     RID colRID;
     for(int i = 0; i < recordDescriptor.size(); i++)
     {
-        prepareColumnRecord(1,recordDescriptor[i],record,i+1);
-        recordBasedFileManager.insertRecord(fileHandle,recordDescriptor1,record,colRID);
+        int size = prepareColumnRecord(1,recordDescriptor[i],record,i+1);
+        void* temp = malloc(size);
+        memcpy(temp,record,size);
+        recordBasedFileManager.insertRecord(fileHandle,recordDescriptor1,temp,colRID);
+        free(temp);
     }
 
     for(int i = 0; i < recordDescriptor1.size(); i++)
     {
-        prepareColumnRecord(2,recordDescriptor1[i],record,i+1);
-        recordBasedFileManager.insertRecord(fileHandle,recordDescriptor1,record,colRID);
+        int size = prepareColumnRecord(2,recordDescriptor1[i],record,i+1);
+        void* temp = malloc(size);
+        memcpy(temp,record,size);
+        recordBasedFileManager.insertRecord(fileHandle,recordDescriptor1,temp,colRID);
+        free(temp);
     }
     free(record);
     recordBasedFileManager.closeFile(fileHandle);
     //END of COLUMNS section
 
+    //std::cout<< "create catalog done"<<std::endl;
     return 0;
 }
 
@@ -211,8 +245,94 @@ RC RelationManager::deleteCatalog() {
     return 0;
 }
 
+RC RelationManager::findNextId(FileHandle &fileHandle,const std::vector<Attribute>& recordDescriptor) {
+
+    int total = fileHandle.getNumberOfPages();
+    void* buffer = malloc(PAGE_SIZE);
+
+    fileHandle.readPage(total-1,buffer);
+    int offset = PAGE_SIZE - (2 * sizeof(int));
+
+    int slotPointer,test;
+    memcpy((char*)&test,(char*) buffer + offset , sizeof(int));
+    memcpy((char*)&slotPointer,(char*) buffer + offset + sizeof(int), sizeof(int));
+
+    int recordOffset,length;
+    memcpy((char*)&recordOffset,(char*)buffer + slotPointer, sizeof(int));
+    memcpy((char*)&length,(char*)buffer + slotPointer+ sizeof(int), sizeof(int));
+
+    int tableIdOffset, tableId;
+    memcpy((char*)&tableIdOffset,(char*)buffer + recordOffset, sizeof(int));
+
+    memcpy((char*)&tableId,(char*)buffer + tableIdOffset + recordOffset - sizeof(int), sizeof(int));
+
+    free(buffer);
+    return tableId;
+}
+
+RC RelationManager::prepareTableRecord(const int tableId, const std::string &tableName, const std::string &fileName,
+                                       const int version,void* record) {
+
+    int nullBitLength = 1;
+    char* bitInfo = new char[nullBitLength];
+    memset(bitInfo,0,nullBitLength);
+    // Null bit add
+    memcpy((char*)record ,bitInfo,nullBitLength);
+    delete[] bitInfo;
+
+    int length = tableName.length();
+    memcpy((char*)record + nullBitLength,(char*)&tableId, sizeof(int));
+    memcpy((char*)record + nullBitLength + sizeof(int),(char*)&length, sizeof(int));
+    memcpy((char*)record + nullBitLength + (2 * sizeof(int)),tableName.c_str(),length);
+
+    int fileLength = fileName.length();
+    memcpy((char*) record + nullBitLength + (2* sizeof(int)) + length, (char*)&fileLength, sizeof(int));
+    memcpy((char*)record + nullBitLength + (2* sizeof(int)) + length + sizeof(int),fileName.c_str(), fileLength);
+
+    memcpy((char*)record + nullBitLength + (2* sizeof(int)) + length + sizeof(int) + fileLength,(char*)&version,
+           sizeof(int));
+
+    return 0;
+
+}
+
 RC RelationManager::createTable(const std::string &tableName, const std::vector<Attribute> &attrs) {
-    return -1;
+
+    RecordBasedFileManager& recordBasedFileManager = RecordBasedFileManager::instance();
+    recordBasedFileManager.createFile(tableName);
+
+    FileHandle fileHandle;
+    recordBasedFileManager.openFile("TABLES",fileHandle);
+    std::vector<Attribute> recordDescriptor;
+    initTables(recordDescriptor);
+
+    int tableId = findNextId(fileHandle,recordDescriptor);
+    tableId += 1;
+
+    int length = tableName.length();
+    int size = sizeof(char) + (4 * sizeof(int)) + (2 * length);
+    void* record = malloc(size);
+    prepareTableRecord(tableId,tableName,tableName,1,record);
+
+    RID rid;
+    recordBasedFileManager.insertRecord(fileHandle,recordDescriptor,record,rid);
+    free(record);
+
+    std::vector<Attribute> recordDescriptor1;
+    initColumns(recordDescriptor1);
+    for(int i=0;i< attrs.size();i++)
+    {
+        int length = attrs[i].name.length();
+        length += (6 * sizeof(int)) + sizeof(char);
+        void* colRecord = malloc(length);
+        prepareColumnRecord(tableId,attrs[i],colRecord,(i+1));
+        recordBasedFileManager.insertRecord(fileHandle,recordDescriptor1,colRecord,rid);
+        free(colRecord);
+    }
+
+
+    fileHandle.closeFile();
+    return 0;
 }
 
 RC RelationManager::deleteTable(const std::string &tableName) {

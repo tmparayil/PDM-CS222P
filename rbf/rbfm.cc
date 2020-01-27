@@ -332,8 +332,6 @@ RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle, const std::vecto
     int totalSlot = ((ptrOffsets - slotOffset ) / (2 * sizeof(int)));
 
     int slotNumber = nextAvailableSlot(buffer,ptrOffsets, slotOffset);
-    std::cout<<"insert slot"<<std::endl;
-    std::cout<<slotNumber<<std::endl;
 
     if(slotNumber == -1)
     {
@@ -349,8 +347,8 @@ RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle, const std::vecto
     rid.pageNum = page;
     rid.slotNum = slotNumber;
 
-    std::cout<<"RID details"<<std::endl;
-    std::cout<<rid.pageNum << "\t"<<rid.slotNum<<std::endl;
+//    std::cout<<"RID details"<<std::endl;
+//    std::cout<<rid.pageNum << "\t"<<rid.slotNum<<std::endl;
 
     // Inserting record into page at recordOffset
     memcpy((char*)buffer + recordOffset,(char*)record,newSize);
@@ -562,11 +560,12 @@ RC RecordBasedFileManager::deleteRecord(FileHandle &fileHandle, const std::vecto
      int offset = -1;
      int type = -1;
      RecordBasedFileManager::readRecord(fileHandle,recordDescriptor,rid,buffer);
+     offset = ceil((double) recordDescriptor.size() / CHAR_BIT);
      for(int i = 0; i< recordDescriptor.size();i++)
      {
          if(attributeName == recordDescriptor[i].name)
          {
-             offset = sizeof(int) + (i * sizeof(int));
+             offset += sizeof(int) + (i * sizeof(int));
              type = recordDescriptor[i].type;
              break;
          }
