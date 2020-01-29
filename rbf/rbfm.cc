@@ -173,6 +173,10 @@ void RecordBasedFileManager::encodeRecord(FileHandle &fileHandle,const std::vect
 
                     memcpy((char*)record + dataOffset,(char*)&length, sizeof(int));
                     dataOffset += sizeof(int);
+                    char* tempString = new char[length+1];
+                    memcpy((char*)tempString,(char*)data + offset,length);
+                    tempString[length]='\0';
+                    std::cout<<"Insert of string :::"<<tempString<<std::endl;
                     memcpy((char*)record + dataOffset,(char*)data + offset,length);
                     dataOffset += length;
                     offset += length;
@@ -276,6 +280,8 @@ void RecordBasedFileManager::decodeRecord(FileHandle &fileHandle,const std::vect
  */
 RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
                                         const void *data, RID &rid) {
+    std::cout<<"insert is called"<<std::endl;
+
     uint32_t recSize = getRecSize(data,recordDescriptor);
     int nullInfo = ceil((double) recordDescriptor.size() / CHAR_BIT);
     int newSize = recSize - nullInfo + sizeof(int)+ recordDescriptor.size()* sizeof(int);
@@ -347,8 +353,8 @@ RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle, const std::vecto
     rid.pageNum = page;
     rid.slotNum = slotNumber;
 
-//    std::cout<<"RID details"<<std::endl;
-//    std::cout<<rid.pageNum << "\t"<<rid.slotNum<<std::endl;
+    std::cout<<"RID details"<<std::endl;
+    std::cout<<rid.pageNum << "\t"<<rid.slotNum<<std::endl;
 
     // Inserting record into page at recordOffset
     memcpy((char*)buffer + recordOffset,(char*)record,newSize);
@@ -606,7 +612,7 @@ RC RecordBasedFileManager::deleteRecord(FileHandle &fileHandle, const std::vecto
      }
 
      rbfm_ScanIterator.currRID.pageNum = 0;
-     rbfm_ScanIterator.currRID.slotNum = 0;
+     rbfm_ScanIterator.currRID.slotNum = 1;
 
      return 0;
  }
@@ -639,6 +645,8 @@ RC RecordBasedFileManager::deleteRecord(FileHandle &fileHandle, const std::vecto
         {
             rbfmScanIterator.conditionAttributeId = i;
             rbfmScanIterator.conditionAttributeType = recordDescriptor[i].type;
+            std::cout<<"condn attribute ID : "<<rbfmScanIterator.conditionAttributeId<<std::endl;
+            std::cout<<"condn attribute Type : "<<rbfmScanIterator.conditionAttributeType<<std::endl;
             break;
         }
     }
@@ -671,6 +679,107 @@ RC RecordBasedFileManager::getConditionValue(RBFM_ScanIterator &rbfm_ScanIterato
      }
  }
 
+ RC RBFM_ScanIterator::mappingRecord(const std::vector<Attribute> recordDescriptor, const void *record, void *data, const std::vector<std::string> attributeNames) {
+
+     int nullInfo = ceil((double) attributeNames.size() / CHAR_BIT);
+     char* bitInfo = new char[nullInfo];
+     memset(bitInfo, 0 , nullInfo);
+
+  //   std::cout<<"null info :"<<nullInfo<<std::endl;
+     //null Bit Info to be appended at the end of mapping loop
+
+  //   std::cout<<"record desc size :: "<<recordDescriptor.size()<<std::endl;
+
+     int offset = 0;
+     int dataOffset = nullInfo;
+     int j = 0 , i =0;
+     while(j < attributeNames.size())
+     {
+         if(i == recordDescriptor.size())
+             i = 0;
+
+//         std::cout<<"attrib name:"<<attributeNames[j]<<std::endl;
+         if(attributeNames[j] == recordDescriptor[i].name)
+         {
+             offset = sizeof(int) + (sizeof(int) * i);
+             int temp;
+//             std::cout<<"offsets : "<<offset<<std::endl;
+
+             memcpy((char*)&temp,(char*)record + offset, sizeof(int));
+             int bitShift = CHAR_BIT - 1 - i%CHAR_BIT;
+             if(temp == -1)
+             {
+                 bitInfo[i/CHAR_BIT] = bitInfo[j / CHAR_BIT] | (1 << (bitShift));
+                 j++;
+             }
+
+//             std::cout<<"offset :"<<offset<<std::endl;
+             int attribOffset;
+             //first attribute
+             if(offset == sizeof(int))
+             {
+                 attribOffset = sizeof(int) + recordDescriptor.size() * sizeof(int);
+             } else
+             {
+                 offset = offset - sizeof(int);
+//                 std::cout<<"offset :"<<offset<<std::endl;
+                 memcpy((char*)&attribOffset,(char*)record + offset, sizeof(int));
+             }
+
+//             for(int i=0;i<24;i+=4)
+//             {
+//                 int set;
+//                 memcpy((char*)&set,(char*)record + i, sizeof(int));
+//                 std::cout<<set<<"\t";
+//             }
+//             std::cout<<std::endl;
+
+//             std::cout<<"attrib offset :"<<attribOffset<<std::endl;
+
+             while(attribOffset == -1)
+             {
+                 int prevOffset = offset - sizeof(int);
+                 if(prevOffset == sizeof(int))
+                 {
+                     attribOffset = sizeof(int) + (recordDescriptor.size()* sizeof(int));
+                     break;
+                 }
+                 prevOffset -= sizeof(int);
+                 memcpy((char*)&attribOffset,(char*)record + prevOffset, sizeof(int));
+             }
+
+//             std::cout<<"attrib offset :"<<attribOffset<<std::endl;
+
+             //attribOffset -> start of value in record
+             if(recordDescriptor[i].type == TypeInt || recordDescriptor[i].type == TypeReal)
+             {
+
+                 int temp;
+                 memcpy((char*)&temp,(char*)record + attribOffset, sizeof(int));
+//                 std::cout<<"value :"<<temp<<std::endl;
+                 memcpy((char*)data + dataOffset,(char*)record + attribOffset, sizeof(int));
+                 dataOffset += sizeof(int);
+             }
+             else if(recordDescriptor[i].type == TypeVarChar)
+             {
+                 int length;
+                 memcpy((char*)&length,(char*)record + attribOffset, sizeof(int));
+                 //copying length and string to data
+                 memcpy((char*)data + dataOffset,(char*)record + attribOffset, sizeof(int) + length);
+                 dataOffset += (sizeof(int) + length);
+             }
+             j++;
+         }
+         i++;
+     }
+     // copying the null info
+     memcpy((char*)bitInfo,(char*)data,nullInfo);
+
+     delete[] bitInfo;
+     return 0;
+
+}
+
  /**
   * Checks if current page of RID is readable
   * Check if slot number provided is valid for the page
@@ -683,17 +792,16 @@ RC RecordBasedFileManager::getConditionValue(RBFM_ScanIterator &rbfm_ScanIterato
  RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data) {
 
     int returnVal = 0;
-    int MAX_RC_SIZE = PAGE_SIZE - (3 * sizeof(int));
     void* buffer = malloc(PAGE_SIZE);
+    int MAX_RC_SIZE = PAGE_SIZE - (5 * sizeof(int));
     void* record = malloc(MAX_RC_SIZE);
-
 
     int totalPages = fileHandle.getNumberOfPages();
 
     if(fileHandle.readPage(currRID.pageNum,buffer) != 0)
     {
-        free(buffer);
         free(record);
+        free(buffer);
         return RBFM_EOF;
     }
 
@@ -701,27 +809,53 @@ RC RecordBasedFileManager::getConditionValue(RBFM_ScanIterator &rbfm_ScanIterato
     int slotOffset;
     memcpy((char*)&slotOffset,(char*)buffer + ptrOffsets, sizeof(int));
 
+
     int numOfSlots = (ptrOffsets - slotOffset) / (2 * sizeof(int));
 
     while(!validSlot(buffer,record))
     {
+//        std::cout<<"Slot Number : "<<currRID.slotNum<<std::endl;
+//        std::cout<<"Total slots : "<<numOfSlots<<std::endl;
         currRID.slotNum++;
         // >= for the corner case where the first assigned slot in a page = total number of slots in the page
         if(currRID.slotNum >= numOfSlots)
         {
+//            std::cout<<"Total number of pages : "<<totalPages<<std::endl;
+//            std::cout<<"Page Number : "<<currRID.pageNum<<std::endl;
             currRID.pageNum++;
             // >= for the corner case where the first assigned page number = total number of pages
             if(currRID.pageNum >= totalPages)
             {
+                std::cout<<"to be returned"<<std::endl;
                 returnVal = RBFM_EOF;
-                break;
+                free(buffer);
+                free(record);
+                return returnVal;
             }
-            currRID.slotNum = 0;
+            currRID.slotNum = 1;
             fileHandle.readPage(currRID.pageNum,buffer);
         }
     }
-    free(record);
+
+     currRID.slotNum++;
+    if(currRID.slotNum >= numOfSlots)
+    {
+        currRID.pageNum++;
+        if(currRID.pageNum >= totalPages)
+        {
+            std::cout<<"to be returned"<<std::endl;
+            returnVal = RBFM_EOF;
+            free(buffer);
+            free(record);
+            return returnVal;
+        }
+        currRID.slotNum = 1;
+    }
+
+    mappingRecord(recordDescriptor,record,data,attributeNames);
+
     free(buffer);
+    free(record);
     return returnVal;
 }
 
@@ -729,6 +863,7 @@ RC RecordBasedFileManager::getConditionValue(RBFM_ScanIterator &rbfm_ScanIterato
 
 RC RBFM_ScanIterator::validSlot(const void *buffer, void *record) {
 
+//     std::cout<<"valid slot"<<std::endl;
     if(!ridExistsInPage(buffer))
     {
         return false;
@@ -743,11 +878,13 @@ RC RBFM_ScanIterator::validSlot(const void *buffer, void *record) {
 
 bool RBFM_ScanIterator::ridExistsInPage(const void* buffer)
 {
+//    std::cout<<"ridExists"<<std::endl;
     int slotNum = currRID.slotNum;
     int ptrOffsets = PAGE_SIZE - (2 * sizeof(int));
     int slotOffset;
     memcpy((char*)&slotOffset,(char*)buffer + ptrOffsets + sizeof(int), sizeof(int));
 
+//    std::cout<<"slot number : "<<slotNum<<std::endl;
     int totalSlots = (ptrOffsets - slotOffset) / (2 * sizeof(int));
 
     if(slotNum > totalSlots)
@@ -769,6 +906,7 @@ bool RBFM_ScanIterator::ridExistsInPage(const void* buffer)
 
 RC RBFM_ScanIterator::readRecordOnPageForRID(const void* buffer,const std::vector<Attribute> recordDescriptor,void* record)
 {
+//    std::cout<<"readRecord"<<std::endl;
     int slotNum = currRID.slotNum;
     int ptrOffsets = PAGE_SIZE - (2 * sizeof(int));
     int slotOffset;
@@ -787,10 +925,12 @@ RC RBFM_ScanIterator::readRecordOnPageForRID(const void* buffer,const std::vecto
     memcpy((char*)&length,(char*)buffer + offset + sizeof(int), sizeof(int));
 
     memcpy(record,(char*)buffer + recordOffset,length);
+    return 0;
 }
 
 RC RBFM_ScanIterator::satisfyCondition(const void *record) {
 
+//    std::cout<<"satisfier"<<std::endl;
     if(conditionAttributeType == TypeInt)
     {
         int recordValue;
@@ -827,6 +967,7 @@ RC RBFM_ScanIterator::satisfyCondition(const void *record) {
             int offset = sizeof(int);
             int attribOffset;
             memcpy((char*)&attribOffset,(char*)record + offset, sizeof(int));
+            // NULL check
             if(attribOffset == -1)
                 return false;
 
@@ -849,11 +990,13 @@ RC RBFM_ScanIterator::satisfyCondition(const void *record) {
             int offset = sizeof(int) + (conditionAttributeId * sizeof(int));
             int attribOffset;
             memcpy((char*)&attribOffset,(char*)record + offset, sizeof(int));
+
             if(attribOffset == -1)
                 return false;
 
             int prevOffset = offset - sizeof(int);
             memcpy((char*)&attribOffset,(char*)record + prevOffset, sizeof(int));
+
             while(attribOffset == -1)
             {
                 if(prevOffset == sizeof(int))
@@ -867,9 +1010,11 @@ RC RBFM_ScanIterator::satisfyCondition(const void *record) {
 
             int recordLength;
             memcpy((char*)&recordLength,(char*)record + attribOffset, sizeof(int));
+
             char* tempString = new char[recordLength+1];
             memcpy(tempString,(char*)record + attribOffset + sizeof(int), recordLength);
             tempString[recordLength] = '\0';
+
             int length;
             memcpy((char*)&length,(char*)value, sizeof(int));
             char* compareString = new char[length+1];

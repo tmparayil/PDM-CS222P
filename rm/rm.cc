@@ -1,5 +1,5 @@
 #include "rm.h"
-
+#include<math.h>
 RelationManager &RelationManager::instance() {
     static RelationManager _relation_manager = RelationManager();
     return _relation_manager;
@@ -14,70 +14,70 @@ RelationManager::RelationManager(const RelationManager &) = default;
 RelationManager &RelationManager::operator=(const RelationManager &) = default;
 
 RC RelationManager::initTables(std::vector<Attribute> &recordDescriptor) {
-    Attribute attr1;
-    attr1.name = "table-id";
-    attr1.type = TypeInt;
-    attr1.length = 4;
-    recordDescriptor.push_back(attr1);
+    Attribute attr;
+    attr.name = "table-id";
+    attr.type = TypeInt;
+    attr.length = 4;
+    recordDescriptor.push_back(attr);
 
     Attribute attr2;
-    attr2.name = "table-name";
-    attr2.type = TypeVarChar;
-    attr2.length = 50;
-    recordDescriptor.push_back(attr2);
+    attr.name = "table-name";
+    attr.type = TypeVarChar;
+    attr.length = 50;
+    recordDescriptor.push_back(attr);
 
-    Attribute attr3;
-    attr3.name = "file-name";
-    attr3.type = TypeVarChar;
-    attr3.length = 50;
-    recordDescriptor.push_back(attr3);
+    // Attribute attr3;
+    attr.name = "file-name";
+    attr.type = TypeVarChar;
+    attr.length = 50;
+    recordDescriptor.push_back(attr);
 
-    Attribute attr4;
-    attr4.name = "version";
-    attr4.type = TypeInt;
-    attr4.length = 4;
-    recordDescriptor.push_back(attr4);
+    //Attribute attr4;
+    attr.name = "version";
+    attr.type = TypeInt;
+    attr.length = 4;
+    recordDescriptor.push_back(attr);
 
     return 0;
 }
 
 RC RelationManager::initColumns(std::vector<Attribute> &recordDescriptor) {
 
-    Attribute attr1;
-    attr1.name = "table-id";
-    attr1.type = TypeInt;
-    attr1.length = 4;
-    recordDescriptor.push_back(attr1);
+    Attribute attr;
+    attr.name = "table-id";
+    attr.type = TypeInt;
+    attr.length = 4;
+    recordDescriptor.push_back(attr);
 
-    Attribute attr2;
-    attr2.name = "column-name";
-    attr2.type = TypeVarChar;
-    attr2.length = 50;
-    recordDescriptor.push_back(attr2);
+    //Attribute attr2;
+    attr.name = "column-name";
+    attr.type = TypeVarChar;
+    attr.length = 50;
+    recordDescriptor.push_back(attr);
 
-    Attribute attr3;
-    attr3.name = "column-type";
-    attr3.type = TypeInt;
-    attr3.length = 4;
-    recordDescriptor.push_back(attr3);
+    // Attribute attr3;
+    attr.name = "column-type";
+    attr.type = TypeInt;
+    attr.length = 4;
+    recordDescriptor.push_back(attr);
 
-    Attribute attr4;
-    attr4.name = "column-length";
-    attr4.type = TypeInt;
-    attr4.length = 4;
-    recordDescriptor.push_back(attr4);
+    //Attribute attr4;
+    attr.name = "column-length";
+    attr.type = TypeInt;
+    attr.length = 4;
+    recordDescriptor.push_back(attr);
 
-    Attribute attr5;
-    attr5.name = "column-position";
-    attr5.type = TypeInt;
-    attr5.length = 4;
-    recordDescriptor.push_back(attr5);
+    //Attribute attr5;
+    attr.name = "column-position";
+    attr.type = TypeInt;
+    attr.length = 4;
+    recordDescriptor.push_back(attr);
 
-    Attribute attr6;
-    attr6.name = "version";
-    attr6.type = TypeInt;
-    attr6.length = 4;
-    recordDescriptor.push_back(attr6);
+    //Attribute attr6;
+    attr.name = "version";
+    attr.type = TypeInt;
+    attr.length = 4;
+    recordDescriptor.push_back(attr);
 
     /* If needed later for extra credit -> Can use this for the NULL scenario
      *
@@ -245,7 +245,7 @@ RC RelationManager::deleteCatalog() {
     return 0;
 }
 
-RC RelationManager::findNextId(FileHandle &fileHandle,const std::vector<Attribute>& recordDescriptor) {
+int RelationManager::findNextId(FileHandle &fileHandle,const std::vector<Attribute>& recordDescriptor) {
 
     int total = fileHandle.getNumberOfPages();
     void* buffer = malloc(PAGE_SIZE);
@@ -257,15 +257,20 @@ RC RelationManager::findNextId(FileHandle &fileHandle,const std::vector<Attribut
     memcpy((char*)&test,(char*) buffer + offset , sizeof(int));
     memcpy((char*)&slotPointer,(char*) buffer + offset + sizeof(int), sizeof(int));
 
+    std::cout<<"findNextId"<<std::endl;
+    std::cout<<"  "<<test<<"\t"<<slotPointer<<std::endl;
+
     int recordOffset,length;
     memcpy((char*)&recordOffset,(char*)buffer + slotPointer, sizeof(int));
     memcpy((char*)&length,(char*)buffer + slotPointer+ sizeof(int), sizeof(int));
 
+    std::cout<<"  "<<recordOffset<<"\t"<<length<<std::endl;
     int tableIdOffset, tableId;
-    memcpy((char*)&tableIdOffset,(char*)buffer + recordOffset, sizeof(int));
+    memcpy((char*)&tableIdOffset,(char*)buffer + recordOffset + sizeof(int), sizeof(int));
 
     memcpy((char*)&tableId,(char*)buffer + tableIdOffset + recordOffset - sizeof(int), sizeof(int));
 
+    std::cout<<"  "<<tableIdOffset<<"\t"<<tableId<<std::endl;
     free(buffer);
     return tableId;
 }
@@ -309,6 +314,7 @@ RC RelationManager::createTable(const std::string &tableName, const std::vector<
     int tableId = findNextId(fileHandle,recordDescriptor);
     tableId += 1;
 
+    std::cout<<"Table ID :"<<tableId<<std::endl;
     int length = tableName.length();
     int size = sizeof(char) + (4 * sizeof(int)) + (2 * length);
     void* record = malloc(size);
@@ -316,8 +322,10 @@ RC RelationManager::createTable(const std::string &tableName, const std::vector<
 
     RID rid;
     recordBasedFileManager.insertRecord(fileHandle,recordDescriptor,record,rid);
+    recordBasedFileManager.closeFile(fileHandle);
     free(record);
 
+    recordBasedFileManager.openFile("COLUMNS",fileHandle);
     std::vector<Attribute> recordDescriptor1;
     initColumns(recordDescriptor1);
     for(int i=0;i< attrs.size();i++)
@@ -330,8 +338,7 @@ RC RelationManager::createTable(const std::string &tableName, const std::vector<
         free(colRecord);
     }
 
-
-    fileHandle.closeFile();
+    recordBasedFileManager.closeFile(fileHandle);
     return 0;
 }
 
@@ -340,32 +347,194 @@ RC RelationManager::deleteTable(const std::string &tableName) {
 }
 
 RC RelationManager::getAttributes(const std::string &tableName, std::vector<Attribute> &attrs) {
-    return -1;
+
+    RecordBasedFileManager& recordBasedFileManager = RecordBasedFileManager::instance();
+    FileHandle tableHandler, columnHandler;
+    RBFM_ScanIterator tableScan,columnScan;
+    std::vector<Attribute> tableDescriptor, columnDescriptor;
+    initTables(tableDescriptor);
+    initColumns(columnDescriptor);
+
+
+    //table scan
+    int tableSize = tableName.length()+sizeof(int), tableID;
+    void *val = malloc(tableSize);
+    int len = tableName.length();
+    RID rid;
+    std::vector<std::string> tblid_attr;
+    std::cout<<"length of table ::"<<len<<std::endl;
+    char* tempString = new char[len+1];
+    memcpy((char*)tempString,(char*)tableName.c_str(),len);
+    tempString[len]='\0';
+    std::cout<<"Table name :::"<<tempString<<std::endl;
+
+    int MAX_RC_SIZE = PAGE_SIZE - (3 * sizeof(int));
+    void* scanResult_tbl = malloc(MAX_RC_SIZE);
+    // std::cout<<size;
+    memcpy((char*)val, &len, sizeof(int));
+    memcpy((char*)val + sizeof(int), (char*)tableName.c_str(), len);
+
+
+    // std::cout<<tableName.c_str();
+    std::string attr = "table-id";
+    tblid_attr.push_back(attr);
+    recordBasedFileManager.openFile("TABLES", tableHandler);
+    recordBasedFileManager.scan(tableHandler,tableDescriptor,"table-name",EQ_OP, val, tblid_attr,tableScan);
+
+    while(tableScan.getNextRecord(rid,scanResult_tbl) != RBFM_EOF){
+        memcpy(&tableID, (char *)scanResult_tbl + 1,sizeof(int));
+        break;
+    }
+
+    std::cout<<"Table ID : "<<tableID<<std::endl;
+
+    //freeing the used pointers
+
+    free(val);
+    free(scanResult_tbl);
+    tableScan.close();
+    recordBasedFileManager.closeFile(tableHandler);
+
+//column scan
+
+//column attributes push_back
+    std::vector<std::string> col_attributes;
+    std::string col_attr1 = "column-name";
+    std::string col_attr2 = "column-type";
+    std::string col_attr3 = "column-length";
+    col_attributes.push_back(col_attr1);
+    col_attributes.push_back(col_attr2);
+    col_attributes.push_back(col_attr3);
+    recordBasedFileManager.openFile("COLUMNS", columnHandler);
+
+    void *val1 = malloc(sizeof(int));
+    memcpy((char*)val1, &tableID, sizeof(int));
+
+    //call scan function
+    recordBasedFileManager.scan(columnHandler,columnDescriptor,"table-id",EQ_OP, val1, col_attributes,columnScan);
+    void* scanResult_col = malloc(PAGE_SIZE);
+    char *nullFieldsIndicator;
+    while(columnScan.getNextRecord(rid,scanResult_col) != RBFM_EOF){
+
+        // get the attributedesc
+
+        Attribute current_col_attr, columnDesc;
+        bool nullinfo;
+        int offset = ceil((double) col_attributes.size() / 8);
+        nullFieldsIndicator = (char *) malloc(offset);
+        memcpy(nullFieldsIndicator, (char *)scanResult_col, offset);
+
+        for(int i = 0 ; i < columnDescriptor.size(); i++) {
+            columnDesc = columnDescriptor[i];
+            nullinfo = nullFieldsIndicator[i/8] & (1 << (7 - i%8));
+            if(!nullinfo){
+                switch(columnDesc.type){
+                    case TypeInt:
+                        int tempInt;
+                        memcpy(&tempInt,(char *)scanResult_col + offset, columnDesc.length);
+                        offset += columnDesc.length;
+                        current_col_attr.length = tempInt;
+                        break;
+                    case TypeReal:
+                        float tempFloat;
+                        memcpy(&tempFloat,(char *)scanResult_col + offset, columnDesc.length) ;
+                        offset += columnDesc.length;
+                        current_col_attr.length = tempFloat;
+                        break;
+                    case TypeVarChar:
+                        int length;
+                        memcpy(&length,(char *)scanResult_col + offset, sizeof(int));
+                        offset += sizeof(int);
+                        std::string tmp;
+                        memcpy(&tmp, (char*)scanResult_col + offset, length);
+                        offset += length;
+                        current_col_attr.name = tmp;
+                        break;
+                }
+
+            }
+        }
+        attrs.push_back(current_col_attr);
+
+    }
+    free(nullFieldsIndicator);
+    free(val1);
+    free(scanResult_col);
+    columnScan.close();
+    recordBasedFileManager.closeFile(columnHandler);
+    return 0;
 }
 
+
 RC RelationManager::insertTuple(const std::string &tableName, const void *data, RID &rid) {
-    return -1;
+
+
+    FileHandle fileHandle;
+    RecordBasedFileManager& recordBasedFileManager = RecordBasedFileManager::instance();
+    recordBasedFileManager.openFile(tableName, fileHandle);
+    std::vector<Attribute> recordDescriptor;
+    getAttributes(tableName,recordDescriptor);
+    int res = recordBasedFileManager.insertRecord(fileHandle,recordDescriptor,data, rid);
+    recordBasedFileManager.closeFile(fileHandle);
+
+    return res;
 }
 
 RC RelationManager::deleteTuple(const std::string &tableName, const RID &rid) {
-    return -1;
+    FileHandle fileHandle;
+    RecordBasedFileManager& recordBasedFileManager = RecordBasedFileManager::instance();
+    recordBasedFileManager.openFile(tableName, fileHandle);
+    std::vector<Attribute> recordDescriptor;
+    getAttributes(tableName,recordDescriptor);
+    int res = recordBasedFileManager.deleteRecord(fileHandle,recordDescriptor, rid);
+    recordBasedFileManager.closeFile(fileHandle);
+
+    return res;
 }
 
 RC RelationManager::updateTuple(const std::string &tableName, const void *data, const RID &rid) {
-    return -1;
+
+    FileHandle fileHandle;
+    RecordBasedFileManager& recordBasedFileManager = RecordBasedFileManager::instance();
+    recordBasedFileManager.openFile(tableName, fileHandle);
+    std::vector<Attribute> recordDescriptor;
+    getAttributes(tableName,recordDescriptor);
+    int res = recordBasedFileManager.updateRecord(fileHandle,recordDescriptor, data, rid);
+    recordBasedFileManager.closeFile(fileHandle);
+
+    return res;
 }
 
 RC RelationManager::readTuple(const std::string &tableName, const RID &rid, void *data) {
-    return -1;
+
+    FileHandle fileHandle;
+    RecordBasedFileManager& recordBasedFileManager = RecordBasedFileManager::instance();
+    recordBasedFileManager.openFile(tableName, fileHandle);
+    std::vector<Attribute> recordDescriptor;
+    getAttributes(tableName,recordDescriptor);
+    int res = recordBasedFileManager.readRecord(fileHandle,recordDescriptor, rid, data);
+    recordBasedFileManager.closeFile(fileHandle);
+
+    return res;
 }
 
 RC RelationManager::printTuple(const std::vector<Attribute> &attrs, const void *data) {
-    return -1;
+
+    RecordBasedFileManager& recordBasedFileManager = RecordBasedFileManager::instance();
+    recordBasedFileManager.printRecord(attrs, data);
+    return 0;
 }
 
 RC RelationManager::readAttribute(const std::string &tableName, const RID &rid, const std::string &attributeName,
                                   void *data) {
-    return -1;
+    FileHandle fileHandle;
+    RecordBasedFileManager& recordBasedFileManager = RecordBasedFileManager::instance();
+    recordBasedFileManager.openFile(tableName, fileHandle);
+    std::vector<Attribute> recordDescriptor;
+    getAttributes(tableName,recordDescriptor);
+    int res = recordBasedFileManager.readAttribute(fileHandle,recordDescriptor, rid, attributeName, data);
+    recordBasedFileManager.closeFile(fileHandle);
+    return res;
 }
 
 RC RelationManager::scan(const std::string &tableName,
@@ -374,8 +543,22 @@ RC RelationManager::scan(const std::string &tableName,
                          const void *value,
                          const std::vector<std::string> &attributeNames,
                          RM_ScanIterator &rm_ScanIterator) {
+
+    FileHandle fileHandle;
+    RecordBasedFileManager& recordBasedFileManager = RecordBasedFileManager::instance();
+    recordBasedFileManager.openFile(tableName, fileHandle);
+    std::vector<Attribute> recordDescriptor;
+    getAttributes(tableName,recordDescriptor);
+//    int res = recordBasedFileManager.scan(fileHandle,recordDescriptor,conditionAttribute,compOp,value, attributeNames, rm_ScanIterator);
+    // rm_scaniterator to rbfm_scan_iterator
+    recordBasedFileManager.closeFile(fileHandle);
+
+
+    //left to complete this function
     return -1;
 }
+
+
 
 // Extra credit work
 RC RelationManager::dropAttribute(const std::string &tableName, const std::string &attributeName) {
@@ -386,6 +569,3 @@ RC RelationManager::dropAttribute(const std::string &tableName, const std::strin
 RC RelationManager::addAttribute(const std::string &tableName, const Attribute &attr) {
     return -1;
 }
-
-
-

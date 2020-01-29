@@ -76,7 +76,7 @@ protected:
     RC initTableRecord(void* record);
     RC initColumnRecord(void* record);
     RC prepareColumnRecord(int tableId,Attribute attribute,void* record,int pos);
-    RC findNextId(FileHandle& fileHandle,const std::vector<Attribute>& recordDescriptor);
+    int findNextId(FileHandle& fileHandle,const std::vector<Attribute>& recordDescriptor);
     RC prepareTableRecord(const int tableId,const std::string& tableName,const std::string& fileName,const int version, void* record);
 };
 

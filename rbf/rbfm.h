@@ -81,6 +81,7 @@ private:
     bool checkConditionInt(int recordValue,int compareValue,CompOp comparisonOperator);
     bool checkConditionFloat(float recordValue,float compareValue,CompOp comparisonOperator);
     bool checkConditionChar(char* recordValue,char* compareValue,CompOp comparisonOperator);
+    RC mappingRecord(const std::vector<Attribute>recordDescriptor,const void* record,void* data,const std::vector<std::string>attributeNames);
 };
 
 class RecordBasedFileManager {
