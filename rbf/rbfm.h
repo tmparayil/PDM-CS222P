@@ -77,7 +77,7 @@ private:
     RC validSlot(const void* buffer,void* record);
     bool ridExistsInPage(const void* buffer);
     RC readRecordOnPageForRID(const void* buffer,const std::vector<Attribute> recordDescriptor,void* record);
-    RC satisfyCondition(const void* record);
+    bool satisfyCondition(const void* record);
     bool checkConditionInt(int recordValue,int compareValue,CompOp comparisonOperator);
     bool checkConditionFloat(float recordValue,float compareValue,CompOp comparisonOperator);
     bool checkConditionChar(char* recordValue,char* compareValue,CompOp comparisonOperator);

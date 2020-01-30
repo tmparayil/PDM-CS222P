@@ -245,6 +245,8 @@ RC RelationManager::deleteCatalog() {
     return 0;
 }
 
+
+// Verified -- No bugs
 int RelationManager::findNextId(FileHandle &fileHandle,const std::vector<Attribute>& recordDescriptor) {
 
     int total = fileHandle.getNumberOfPages();
@@ -416,14 +418,14 @@ RC RelationManager::getAttributes(const std::string &tableName, std::vector<Attr
     char *nullFieldsIndicator;
     while(columnScan.getNextRecord(rid,scanResult_col) != RBFM_EOF){
 
-        // get the attributedesc
-
+        std::cout<<"inside column scan loop->>";
         Attribute current_col_attr, columnDesc;
         bool nullinfo;
-        int offset = ceil((double) col_attributes.size() / 8);
+        int offset = ceil((double) columnDescriptor.size() / 8);
+        char *nullFieldsIndicator;
         nullFieldsIndicator = (char *) malloc(offset);
         memcpy(nullFieldsIndicator, (char *)scanResult_col, offset);
-
+        std::cout<<columnDescriptor.size()<<"column desc size";
         for(int i = 0 ; i < columnDescriptor.size(); i++) {
             columnDesc = columnDescriptor[i];
             nullinfo = nullFieldsIndicator[i/8] & (1 << (7 - i%8));
@@ -433,13 +435,20 @@ RC RelationManager::getAttributes(const std::string &tableName, std::vector<Attr
                         int tempInt;
                         memcpy(&tempInt,(char *)scanResult_col + offset, columnDesc.length);
                         offset += columnDesc.length;
+                        if(tempInt == 2)
+                            current_col_attr.type = TypeVarChar;
+                        else if(tempInt == 1)
+                            current_col_attr.type = TypeReal;
+                        else
+                            current_col_attr.type = TypeInt;
                         current_col_attr.length = tempInt;
                         break;
                     case TypeReal:
                         float tempFloat;
                         memcpy(&tempFloat,(char *)scanResult_col + offset, columnDesc.length) ;
                         offset += columnDesc.length;
-                        current_col_attr.length = tempFloat;
+                        // current_col_attr.length = tempFloat;
+                        // current_col_attr.type = TypeReal;
                         break;
                     case TypeVarChar:
                         int length;
@@ -455,9 +464,8 @@ RC RelationManager::getAttributes(const std::string &tableName, std::vector<Attr
             }
         }
         attrs.push_back(current_col_attr);
-
+        free(nullFieldsIndicator);
     }
-    free(nullFieldsIndicator);
     free(val1);
     free(scanResult_col);
     columnScan.close();
