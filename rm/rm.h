@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include <iostream>
+#include <sys/stat.h>
 
 #include "../rbf/rbfm.h"
 
@@ -78,6 +79,7 @@ protected:
     RC prepareColumnRecord(int tableId,Attribute attribute,void* record,int pos);
     int findNextId(FileHandle& fileHandle,const std::vector<Attribute>& recordDescriptor);
     RC prepareTableRecord(const int tableId,const std::string& tableName,const std::string& fileName,const int version, void* record);
+    bool FileExists(const std::string &fileName);
 };
 
 #endif
