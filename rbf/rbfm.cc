@@ -356,7 +356,7 @@ void RecordBasedFileManager::decodeRecord(FileHandle &fileHandle,const std::vect
  */
 RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
                                         const void *data, RID &rid) {
-    bool debugFlag = true;
+    bool debugFlag = false;
 
     uint32_t recSize = getRecSize(data,recordDescriptor);
     int nullInfo = ceil((double) recordDescriptor.size() / CHAR_BIT);
@@ -481,7 +481,7 @@ RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle, const std::vecto
 RC RecordBasedFileManager::readRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
                                       const RID &rid, void *data) {
 
-    bool debugFlag = (rid.pageNum == 16 || rid.pageNum == 12);
+    bool debugFlag = false;
 
     if(debugFlag)
     {
@@ -553,7 +553,7 @@ RC RecordBasedFileManager::readRecord(FileHandle &fileHandle, const std::vector<
 
 RC RecordBasedFileManager::deleteRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
                                         const RID &rid) {
-    bool debugFlag = (rid.pageNum == 16);
+    bool debugFlag = false;
 
     if(debugFlag)
     {
@@ -561,7 +561,9 @@ RC RecordBasedFileManager::deleteRecord(FileHandle &fileHandle, const std::vecto
         std::cout<<"delete record()"<<std::endl;
         std::cout<<"----------------"<<std::endl;
         std::cout<<std::endl;
-
+        std::cout<<"RID details"<<std::endl;
+        std::cout<<rid.pageNum << "\t"<<rid.slotNum<<std::endl;
+        std::cout<<std::endl;
     }
 
     // if pagenumber doesn't exist, return -1
@@ -607,51 +609,125 @@ RC RecordBasedFileManager::deleteRecord(FileHandle &fileHandle, const std::vecto
         std::cout<<"record length : "<<recordLength<<std::endl;
     }
 
-    memcpy((char*) page + offset , &markRecPtr, sizeof(int));
-    memcpy((char *) page + offset + sizeof(int), &newLength, sizeof(int));
+    if(recordLength == -1 && recordStart == -1)
+    {
+        if(debugFlag) {
+            std::cout << "record is already deleted." << std::endl;
+            std::cout << "RID : " << rid.pageNum << " " << rid.slotNum << std::endl;
+        }
+        return -1;
+    }
+    // Handle tombstones
+    else if(recordLength == -1)
+    {
+        RID newRID;
+        memcpy((char*)&newRID.pageNum,(char*)page + recordStart, sizeof(int));
+        memcpy((char*)&newRID.slotNum,(char*)page + recordStart+ sizeof(int), sizeof(int));
 
-    //move records and slots if the record num to be deleted is more than one and not the last record
-    int slotct = rid.slotNum;
+        if(debugFlag)
+        {
+            std::cout<<"Tombstone delete"<<std::endl;
+            std::cout<<"new RID :"<<newRID.pageNum<<"  "<<newRID.slotNum<<std::endl;
+            std::cout<<std::endl;
+        }
+        memcpy((char *) page + offset, &markRecPtr, sizeof(int));
 
-    if (slotct < totalNumSlots) {
-        int recEnd = recordStart + recordLength;
-        memmove((char*) page + recordStart, (char*)page + recEnd, recordOffset - recEnd);
+        if(rid.slotNum < totalNumSlots)
+        {
+            int recEnd = recordStart + (2 * sizeof(int));
+            memmove((char*)page + recordStart,(char*)page + recEnd,recordOffset - recEnd);
 
-        //updating the offsets of the remaining slots
-        for (int i = slotct + 1 ; i <= totalNumSlots; i++) {
-            offset -= 2 * sizeof(int);
-            int recPtr;
-            memcpy((char*)&recPtr, (char*) page + offset, sizeof(int));
-
-            if(debugFlag)
-            {
-                std::cout<<"slot : "<<i<<std::endl;
-                std::cout<<"record ptr : "<<recPtr<<std::endl;
-            }
-            // If record is deleted, no need to update offset.
-            if (recPtr > recordStart) {
-                recPtr -= recordLength;
-                memcpy((char*)page + offset,(char*)&recPtr, sizeof(int));
+            //updating the offsets of the remaining slots
+            for (int i = rid.slotNum + 1 ; i <= totalNumSlots; i++) {
+                offset -= (2 * sizeof(int));
+                int recPtr;
+                memcpy((char*)&recPtr, (char*) page + offset, sizeof(int));
 
                 if(debugFlag)
                 {
-                    std::cout<<"after updating, record ptr : "<<recPtr<<std::endl;
+                    std::cout<<"slot : "<<i<<std::endl;
+                    std::cout<<"record ptr : "<<recPtr<<std::endl;
+                }
+                // If record is deleted, no need to update offset.
+                if (recPtr > recordStart) {
+                    recPtr -= (2 * sizeof(int));
+                    memcpy((char*)page + offset,(char*)&recPtr, sizeof(int));
+
+                    if(debugFlag)
+                    {
+                        std::cout<<"after updating, record ptr : "<<recPtr<<std::endl;
+                    }
+                }
+            }
+
+            recordOffset -= (2 * sizeof(int));
+            memcpy((char *) page + ptrOffsets, (char*)&recordOffset, sizeof(int));
+
+            //Update free space info
+            freeSpace += (2 * sizeof(int));
+            memcpy((char*)page, (char*)&freeSpace, sizeof(int));
+
+            if(debugFlag)
+            {
+                std::cout<<"Updated record offset : "<<recordOffset<<std::endl;
+                std::cout<<"Updated free space : "<<freeSpace<<std::endl;
+            }
+
+            deleteRecord(fileHandle,recordDescriptor,newRID);
+            void* checkData = malloc(PAGE_SIZE);
+            if(readRecord(fileHandle,recordDescriptor,newRID,checkData) != -1)
+                std::cout<<"Deleted record can still be read"<<std::endl;
+            free(checkData);
+        }
+    } else
+    {
+        memcpy((char*) page + offset , &markRecPtr, sizeof(int));
+        memcpy((char *) page + offset + sizeof(int), &newLength, sizeof(int));
+
+        //move records and slots if the record num to be deleted is more than one and not the last record
+        int slotct = rid.slotNum;
+
+        if (slotct < totalNumSlots) {
+            int recEnd = recordStart + recordLength;
+            memmove((char*) page + recordStart, (char*)page + recEnd, recordOffset - recEnd);
+
+            //updating the offsets of the remaining slots
+            for (int i = slotct + 1 ; i <= totalNumSlots; i++) {
+                offset -= 2 * sizeof(int);
+                int recPtr;
+                memcpy((char*)&recPtr, (char*) page + offset, sizeof(int));
+
+                if(debugFlag)
+                {
+                    std::cout<<"slot : "<<i<<std::endl;
+                    std::cout<<"record ptr : "<<recPtr<<std::endl;
+                }
+                // If record is deleted, no need to update offset.
+                if (recPtr > recordStart) {
+                    recPtr -= recordLength;
+                    memcpy((char*)page + offset,(char*)&recPtr, sizeof(int));
+
+                    if(debugFlag)
+                    {
+                        std::cout<<"after updating, record ptr : "<<recPtr<<std::endl;
+                    }
                 }
             }
         }
-    }
-    recordOffset -= recordLength;
-    memcpy((char *) page + ptrOffsets, (char*)&recordOffset, sizeof(int));
+        recordOffset -= recordLength;
+        memcpy((char *) page + ptrOffsets, (char*)&recordOffset, sizeof(int));
 
-    //Update free space info
-    freeSpace += recordLength;
-    memcpy((char*)page, (char*)&freeSpace, sizeof(int));
+        //Update free space info
+        freeSpace += recordLength;
+        memcpy((char*)page, (char*)&freeSpace, sizeof(int));
 
-    if(debugFlag)
-    {
-        std::cout<<"Updated record offset : "<<recordOffset<<std::endl;
-        std::cout<<"Updated free space : "<<freeSpace<<std::endl;
+        if(debugFlag)
+        {
+            std::cout<<"Updated record offset : "<<recordOffset<<std::endl;
+            std::cout<<"Updated free space : "<<freeSpace<<std::endl;
+        }
     }
+
     int res = fileHandle.writePage(rid.pageNum, page);
     free(page);
     return res;
@@ -723,7 +799,7 @@ RC RecordBasedFileManager::printRecord(const std::vector<Attribute> &recordDescr
 RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
                                         const void *data, const RID &rid) {
 
-    bool debugFlag = (rid.pageNum == 16);
+    bool debugFlag = false;
 
     if(debugFlag)
     {
@@ -799,8 +875,19 @@ RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle, const std::vecto
             std::cout<<(recordOffset - recEndPrev)<<" : shifted these many bytes by : "<<(recEndPrev - recEndCurr)<<std::endl;
         }
 
-        //moving the other records left
-        memmove((char*) page + recEndCurr, (char*)page + recEndPrev, recordOffset - recEndPrev);
+        if(recordOffset - recEndPrev == 0)
+        {
+            if(debugFlag)
+            {
+                std::cout<<"Last record on page : "<<rid.pageNum<<std::endl;
+                std::cout<<"New end of record of slot :"<<rid.slotNum<<" is :"<<recEndCurr<<std::endl;
+                std::cout<<"New record offset : "<<(recordOffset + difference);
+            }
+        } else
+        {
+            memmove((char*) page + recEndCurr, (char*)page + recEndPrev, recordOffset - recEndPrev);
+        }
+
         //changing the current record's length in the slot entry
         memcpy((char *) page + offset + sizeof(int), &newSize, sizeof(int));
 
@@ -859,10 +946,22 @@ RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle, const std::vecto
                 std::cout<<"---------------"<<std::endl;
                 std::cout<<recEndPrev<<" : Prev record end"<<std::endl;
                 std::cout<<recEndCurr<<" : Curr record end"<<std::endl;
-                std::cout<<(recordOffset - recEndPrev)<<" : shifted these many bytes"<<std::endl;
+                std::cout<<(recordOffset - recEndPrev)<<" : shifted these many bytes by "<<difference<<std::endl;
             }
 
-            memmove((char*) page + recEndCurr, (char*)page + recEndPrev, recordOffset - recEndPrev);
+            if(recordOffset - recEndPrev == 0)
+            {
+                if(debugFlag)
+                {
+                    std::cout<<"Last record on page : "<<rid.pageNum<<std::endl;
+                    std::cout<<"New end of record of slot :"<<rid.slotNum<<" is :"<<recEndCurr<<std::endl;
+                    std::cout<<"New record offset : "<<(recordOffset - difference);
+                }
+            } else
+            {
+                memmove((char*) page + recEndCurr, (char*)page + recEndPrev, recordOffset - recEndPrev);
+            }
+
             memcpy((char *) page + offset + sizeof(int), &newSize, sizeof(int));
             int slotct = rid.slotNum;
 
@@ -921,14 +1020,25 @@ RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle, const std::vecto
 
             if(debugFlag)
             {
+                std::cout<<"Tombstone"<<std::endl;
                 std::cout<<"Record details"<<std::endl;
                 std::cout<<"---------------"<<std::endl;
                 std::cout<<recEndPrev<<" : Prev record end"<<std::endl;
                 std::cout<<recEndCurr<<" : Curr record end"<<std::endl;
                 std::cout<<(recordOffset - recEndPrev)<<" : shifted these many bytes by : "<<difference<<std::endl;
             }
-
-            memmove((char*) page + recEndCurr, (char*)page + recEndPrev, recordOffset - recEndPrev);
+            if(recordOffset - recEndPrev == 0)
+            {
+                if(debugFlag)
+                {
+                    std::cout<<"Last record on page : "<<rid.pageNum<<std::endl;
+                    std::cout<<"New end of record of slot :"<<rid.slotNum<<" is :"<<recEndCurr<<std::endl;
+                    std::cout<<"New record offset : "<<(recordOffset - difference);
+                }
+            } else
+            {
+                memmove((char*) page + recEndCurr, (char*)page + recEndPrev, recordOffset - recEndPrev);
+            }
 
             //updating the offsets of other records in slots
             int slotct = rid.slotNum;
@@ -936,13 +1046,14 @@ RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle, const std::vecto
             if (slotct < totalNumSlots) {
                 for (int i = slotct + 1; i <= totalNumSlots; i++) {
                     offset -= 2 * sizeof(int);
-                    int recPtr;
+                    int recPtr, recLength;
                     memcpy((char *)&recPtr, (char *) page + offset, sizeof(int));
-
+                    memcpy((char *)&recLength, (char *) page + offset + sizeof(int), sizeof(int));
                     if(debugFlag)
                     {
                         std::cout<<i<<" : slot number"<<std::endl;
                         std::cout<<recPtr<<" : record pointer in slot"<<std::endl;
+                        std::cout<<recLength<<" : record length in slot"<<std::endl;
                     }
                     // If record is deleted, no need to update offset.
                     if (recPtr != -1) {
@@ -983,7 +1094,6 @@ RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle, const std::vecto
                 std::cout<<updatedRID_pagenum<<" : new RID pageNum"<<std::endl;
                 std::cout<<updatedRId_slotnum<<" : new RID slotNum"<<std::endl;
             }
-
         }
     }
     int res = fileHandle.writePage(rid.pageNum, page);
@@ -1394,6 +1504,8 @@ bool RBFM_ScanIterator::ridExistsInPage(const void* buffer)
 
     if(recordOffset == -1 && length == -1)
         return false;
+    else if(recordOffset > 0 && length == -1)
+        return false;
 
     return true;
 }
@@ -1426,10 +1538,8 @@ bool RBFM_ScanIterator::satisfyCondition(const void *record) {
 
     if(comparisonOperator == NO_OP)
     {
-//        std::cout<<"No operator. Return True"<<std::endl;
         return true;
     }
-
 
     if(conditionAttributeType == TypeInt)
     {
