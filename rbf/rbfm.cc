@@ -356,10 +356,7 @@ void RecordBasedFileManager::decodeRecord(FileHandle &fileHandle,const std::vect
  */
 RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
                                         const void *data, RID &rid) {
-    bool debugFlag = false;
-
-//    for(int i =0;i<recordDescriptor.size();i++)
-//        std::cout<<recordDescriptor[i].name<<std::endl;
+    bool debugFlag = true;
 
     uint32_t recSize = getRecSize(data,recordDescriptor);
     int nullInfo = ceil((double) recordDescriptor.size() / CHAR_BIT);
@@ -484,7 +481,7 @@ RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle, const std::vecto
 RC RecordBasedFileManager::readRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
                                       const RID &rid, void *data) {
 
-    bool debugFlag = false;
+    bool debugFlag = (rid.pageNum == 16 || rid.pageNum == 12);
 
     if(debugFlag)
     {
@@ -535,7 +532,7 @@ RC RecordBasedFileManager::readRecord(FileHandle &fileHandle, const std::vector<
             std::cout<<"new RID :"<<newRid.pageNum<<"\t"<<newRid.slotNum<<std::endl;
             std::cout<<std::endl;
         }
-        RecordBasedFileManager::readRecord(fileHandle,recordDescriptor,newRid,data);
+        readRecord(fileHandle,recordDescriptor,newRid,data);
     } else {
 
         int nullInfo = ceil((double) recordDescriptor.size() / CHAR_BIT);
@@ -556,7 +553,7 @@ RC RecordBasedFileManager::readRecord(FileHandle &fileHandle, const std::vector<
 
 RC RecordBasedFileManager::deleteRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
                                         const RID &rid) {
-    bool debugFlag = true;
+    bool debugFlag = (rid.pageNum == 16);
 
     if(debugFlag)
     {
@@ -726,7 +723,7 @@ RC RecordBasedFileManager::printRecord(const std::vector<Attribute> &recordDescr
 RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
                                         const void *data, const RID &rid) {
 
-    bool debugFlag = false;
+    bool debugFlag = (rid.pageNum == 16);
 
     if(debugFlag)
     {
@@ -940,7 +937,7 @@ RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle, const std::vecto
                 for (int i = slotct + 1; i <= totalNumSlots; i++) {
                     offset -= 2 * sizeof(int);
                     int recPtr;
-                    memcpy((char *) &recPtr, (char *) page + offset, sizeof(int));
+                    memcpy((char *)&recPtr, (char *) page + offset, sizeof(int));
 
                     if(debugFlag)
                     {
@@ -948,9 +945,9 @@ RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle, const std::vecto
                         std::cout<<recPtr<<" : record pointer in slot"<<std::endl;
                     }
                     // If record is deleted, no need to update offset.
-                    if (recPtr != -1 && recPtr > recordStart) {
+                    if (recPtr != -1) {
                         recPtr -= offsetForSlots;
-                        memcpy((char *) page + offset, (char *) &recPtr, sizeof(int));
+                        memcpy((char *)page + offset, (char*)&recPtr, sizeof(int));
                         if(debugFlag)
                         {
                             std::cout<<recPtr<<" : updated record pointer in slot"<<std::endl;
@@ -990,17 +987,6 @@ RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle, const std::vecto
         }
     }
     int res = fileHandle.writePage(rid.pageNum, page);
-
-    if(rid.pageNum == 125 && rid.slotNum == 7)
-    {
-        void* test = malloc(PAGE_SIZE);
-        readRecord(fileHandle,recordDescriptor,rid,test);
-        printRecord(recordDescriptor,test);
-        int testoffset;
-        memcpy((char*)&testoffset,(char*)data + (sizeof(int)*recordDescriptor.size()), sizeof(int));
-        std::cout<<"last offset of 125 - 7 is :"<<testoffset<<std::endl;
-        free(test);
-    }
 
     free(record);
     free(page);
@@ -1164,10 +1150,18 @@ RC RecordBasedFileManager::getConditionValue(RBFM_ScanIterator &rbfm_ScanIterato
 
 RC RBFM_ScanIterator::mappingRecord(const std::vector<Attribute> recordDescriptor, const void *record, void *data, const std::vector<std::string> attributeNames) {
 
+    bool debugFlag = false;
     int nullInfo = ceil((double) attributeNames.size() / CHAR_BIT);
     char* bitInfo = new char[nullInfo];
     memset(bitInfo, 0 , nullInfo);
 
+    if(debugFlag)
+    {
+        std::cout<<std::endl;
+        std::cout<<"mapping record()"<<std::endl;
+        std::cout<<"----------------"<<std::endl;
+        std::cout<<"Null info : "<<nullInfo<<std::endl;
+    }
     int offset = 0;
     int dataOffset = nullInfo;
     int j = 0 , i =0;
@@ -1176,10 +1170,25 @@ RC RBFM_ScanIterator::mappingRecord(const std::vector<Attribute> recordDescripto
         if(i == recordDescriptor.size())
             i = 0;
 
+        if(debugFlag)
+        {
+            std::cout<<std::endl;
+            std::cout<<"for mapping attr pos "<<j<<" in total "<<attributeNames.size()<<std::endl;
+            std::cout<<"Attribute comparison"<<std::endl;
+            std::cout<<"attribute name : "<<attributeNames[j]<<std::endl;
+            std::cout<<"record desc name : "<<recordDescriptor[i].name<<std::endl;
+        }
+
         if(attributeNames[j] == recordDescriptor[i].name)
         {
             offset = sizeof(int) + (sizeof(int) * i);
             int temp;
+
+            if(debugFlag)
+            {
+                std::cout<<"i index : "<<i<<std::endl;
+                std::cout<<"offset : "<<offset<<std::endl;
+            }
 
             memcpy((char*)&temp,(char*)record + offset, sizeof(int));
             int bitShift = CHAR_BIT - 1 - i%CHAR_BIT;
@@ -1199,6 +1208,12 @@ RC RBFM_ScanIterator::mappingRecord(const std::vector<Attribute> recordDescripto
                 memcpy((char*)&attribOffset,(char*)record + offset, sizeof(int));
             }
 
+            if(debugFlag)
+            {
+                std::cout<<"offset : "<<offset<<std::endl;
+                std::cout<<"attrib offset : "<<attribOffset<<std::endl;
+            }
+
             while(attribOffset == -1)
             {
                 int prevOffset = offset - sizeof(int);
@@ -1211,14 +1226,25 @@ RC RBFM_ScanIterator::mappingRecord(const std::vector<Attribute> recordDescripto
                 memcpy((char*)&attribOffset,(char*)record + prevOffset, sizeof(int));
             }
 
-//             std::cout<<"attrib offset :"<<attribOffset<<std::endl;
+            if(debugFlag)
+            {
+                std::cout<<"attrib offset : "<<attribOffset<<std::endl;
+            }
 
-            //attribOffset -> start of value in record
+
             if(recordDescriptor[i].type == TypeInt || recordDescriptor[i].type == TypeReal)
             {
 
                 int temp;
                 memcpy((char*)&temp,(char*)record + attribOffset, sizeof(int));
+
+                if(debugFlag)
+                {
+                    std::cout<<"Value for Int and Real"<<std::endl;
+                    std::cout<<"value : "<<temp<<std::endl;
+                    std::cout<<"data Offset : "<<dataOffset<<std::endl;
+                }
+
                 memcpy((char*)data + dataOffset,(char*)record + attribOffset, sizeof(int));
                 dataOffset += sizeof(int);
             }
@@ -1227,14 +1253,20 @@ RC RBFM_ScanIterator::mappingRecord(const std::vector<Attribute> recordDescripto
                 int length;
                 memcpy((char*)&length,(char*)record + attribOffset, sizeof(int));
                 //copying length and string to data
-                memcpy((char*)data + dataOffset,(char*)record + attribOffset, sizeof(int) + length);
 
                 // debug stmts
                 char* tempString = new char[length+1];
                 memcpy((char*)tempString,(char*)record + attribOffset + sizeof(int),length);
                 tempString[length] = '\0';
-                std::cout<<"final : "<<tempString<<std::endl;
-
+                if(debugFlag)
+                {
+                    std::cout<<"Value for varchar"<<std::endl;
+                    std::cout<<"value : "<<tempString<<std::endl;
+                    std::cout<<"length : "<<length<<std::endl;
+                    std::cout<<"data Offset : "<<dataOffset<<std::endl;
+                }
+                delete [] tempString;
+                memcpy((char*)data + dataOffset,(char*)record + attribOffset, sizeof(int) + length);
                 // TBD
                 dataOffset += (sizeof(int) + length);
             }
@@ -1243,7 +1275,7 @@ RC RBFM_ScanIterator::mappingRecord(const std::vector<Attribute> recordDescripto
         i++;
     }
     // copying the null info
-    memcpy((char*)bitInfo,(char*)data,nullInfo);
+    memcpy((char*)data,(char*)bitInfo,nullInfo);
 
     delete[] bitInfo;
     return 0;
@@ -1320,7 +1352,6 @@ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data) {
 
     mappingRecord(recordDescriptor,record,data,attributeNames);
 
-    std::cout<<"call again"<<std::endl;
     free(buffer);
     free(record);
     return returnVal;
@@ -1395,7 +1426,7 @@ bool RBFM_ScanIterator::satisfyCondition(const void *record) {
 
     if(comparisonOperator == NO_OP)
     {
-        std::cout<<"No operator. Return True"<<std::endl;
+//        std::cout<<"No operator. Return True"<<std::endl;
         return true;
     }
 
