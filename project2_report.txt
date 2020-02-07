@@ -1,40 +1,130 @@
+
 1. Basic information
-Team #:
-Github Repo Link:
-Student 1 UCI NetID:
-Student 1 Name:
-Student 2 UCI NetID (if applicable):
-Student 2 Name (if applicable):
+Team #: 7
+Github Repo Link: https://github.com/UCI-Chenli-teaching/cs222p-winter20-team-7.git
+Student 1 UCI NetID: tparayil
+Student 1 Name: Thomas Parayil
+Student 2 UCI NetID: shahap1
+Student 2 Name: Aneri Shah
 
 
 2. Meta-data
 - Show your meta-data design (Tables and Columns table) and information about each column.
 
+Tables: We store the tables metadata in the "TABLES" file. It has the attributes table-id(TypeInt), table-name(TypeVarChar), file-name(TypeVarChar), version(TypeInt). The TypeInt fields have 4 Bytes allocated to them. The VarChar fields have the length of the name stored in 4 Bytes followed by a byte for each character. It has the information about itself and the COLUMNS table inserted while creating catalog.
+
+Columns: We store the columns metadata in the "COLUMNS" file. It has the attributes table-id(TypeInt), column-name(TypeVarChar), column-type(TypeInt), column-length(TypeInt), column-position(TypeInt), version(TypeInt). The TypeInt fields have 4 Bytes allocated to them. The VarChar fields have the length of the name stored in 4 Bytes followed by a byte for each character. It has the information about the attributes in each table.The information about the attributes of TABLES and itself is inserted while creating catalog. 
+
+After creating a catalog the tables and columns structure will be:
+Tables 
+(1, "Tables", "Tables", 1)
+(2, "Columns", "Columns", 1)
+
+Columns
+(1, "table-id", TypeInt, 4 , 1, 1)
+(1, "table-name", TypeVarChar, 50, 2, 1)
+(1, "file-name", TypeVarChar, 50, 3, 1)
+(1, "version", TypeInt, 4, 4, 1)
+(2, "table-id", TypeInt, 4, 1, 1)
+(2, "column-name",  TypeVarChar, 50, 2, 1)
+(2, "column-type", TypeInt, 4, 3, 1)
+(2, "column-length", TypeInt, 4, 4, 1)
+(2, "column-position", TypeInt, 4, 5, 1)
+(2, "version", TypeInt, 4, 6, 1)
+
+
 
 3. Internal Record Format
 - Show your record format design and describe how your design satisfies O(1) field access. If not, just mention that your team hasn't implemented this feature.
 
+Internal Record Format:
+
+  ---------------------------------------------------------------------------------------------------------------------------
+  | Ptr           | Ptr           |Ptr             |  Varchar | Actual   | TypeInt |  TypeReal  |
+  | to end        | to end        |to end          |  length  | data     | data    |  data      |
+  | of 1st field  | of 2nd field  |of 3rd field    |  info    |          |         |            |
+  ----------------------------------------------------------------------------------------------------------------------------
+
+
+
+The  fields in the record have a pointer at the start of the record that points to the end of that particular field(4 bytes each). Thus, we can access any field value using this information in O(1) time complexity.As shown above, if we have a record with 3 fields and their types are : VarChar, Int and Real respectively. If some field has Null value, no extra space is allocated to that field and the pointer value for that field will be set to -1. If we want to access the field with TypeInt data, we can directly access it in constant time complexity by using the pointer to the 2nd field.
+
+
 - Describe how you store a VarChar field.
+
+If the value is not NULL, we allocate space depending upon the type of the field. For a VarChar field, we first store the length of the characters in a space of 4 bytes (sizeof(int)) and then the actual string is allocated a byte for each character. 
 
 
 4. Page Format
-- Show your page format design.
+
+ 
+ --------------------------------------------------------------------------------------------
+ |  free  |     Records    stored                                     			    |
+ | space  |										    |	
+ | info	  |										    |
+ |------------------------------------------------------------------------------------------|
+ | 											    |
+ |               									    |
+ |											    |
+ |											    |
+ |											    |	
+ |											    |
+ |			Free Space							    |
+ |											    |
+ |											    |
+ |											    |
+ |											    |	
+ |											    |
+ |											    |
+ |											    |	
+ | 											    |
+ |											    |	
+ |											    |
+ |											    |	
+ |			   -----------------------------------------------------------------|	
+ |			   |  slot2 | slot2 | slot1  | slot1   |last_slot    | last_inserted|
+ | 	                   |offset  | length| offset | length  |    ptr      |   record ptr |
+ ---------------------------------------------------------------------------------------------
+
+
+
+The starting 4 bytes of the page contains information about the amount of free space available on that particular page. After this, the space can be allocated for storing records. The records are stored from left to right. The bottom of the page contains slot directory that contains slot information. For each slot we store its offset and length(4 bytes each). Therefore, each slot information requires 8 bytes information to be entered in the slot directory. The last 8 bytes contain the offsets for the last inserted slot and last inserted record (4 bytes each).The slot directory grows from right to left.
+The space between last inserted record and last inserted slot is the free space on that particular page and can be allocated to new records.
+
+
 
 
 5. File Format
-- Show your file format design
+
+The hidden page is added to each file at the start, after which the other pages are allocated space. The hidden page contains a header value(4 bytes) that indicates that the current page is a hidden page. After this we have the number of pages, Read page count, Write page count and Append page count values respectively (4 bytes each).
+After this, the pages with the record format as shown above are stored. 
+
 
 
 6. Describe the following operation logic.
+
 - Update a record
+
+For updating a record, we check for the space required for the updated record including the space for pointers to the fields. We compare this with the space occupied by the current record. If the updated record requires a lesser space or an equal amount of space, we simply replace the existing record with the encoded updated record data (updated record data with pointers). We then move the next records to the left depending on the difference between the updated and current record size. After this, changes to the slot offsets and free space are made. We also change the pointer to the last inserted record.
+
+If the updated record size is greater than the currently existing record, we have two options. If the current page has the available space, we first move the next records to the right to make space for the updated record and then insert the updated record and make changes to the slot directory and free space as mentioned above.
+However, if the current page doesn't have the required free space available to accommodate the updated record, we follow the concept of tombstone. We mark the length of that record in the slot directory as -1. The space for the updated record is found on other pages and the record is inserted there by using the insertrecord(..) function. The page number and slot number is stored at the space where the current record existed. Thus, 8 bytes of space is allocated for storing this and then the other records are moved to the left and the slot directory is modified as above. 
+If the length of the record to be updated is -1 but it has some offset value, the record is stored elsewhere and we get the RID details and call the updaterecord(..) function with the new rid as a parameter.
+
 
 - Delete a record
 
+When deleting a record, we mark the offset and length of that record in the slot directory as -1, so that the incoming records can occupy that space. After this, the succeeding records are moved left and the slot offsets for them are changed. The free space information and pointer to last inserted record is changed. If the record to be deleted has -1 as it's offset in the slot directory, the record is already deleted. If there's a -1 at the length, the record is stored at some other page and we get the page number and slot number and call the deleterecord(..) function with the new rid.
+
+
 - Scan
+
+Given a record descriptor, we read all the entries in the file. The read can also have a condition associated with it on some attribute.The compOp parameter is the comparison type used in the filtering process.It could be less than, greater than, equal to and so on. The value parameter is the value of the conditionAttribute used to filter the records. Scan returns an iterator to the results and allows us to go to go through the results one by one typically using getNextRecord(..) function.
 
 
 7. Implementation Detail
-- Other implementation details goes here.
+
+
 
 
 8. Other (optional)
