@@ -1233,8 +1233,6 @@ RC RecordBasedFileManager::readAttribute(FileHandle &fileHandle, const std::vect
         if(type == TypeReal || type == TypeInt)
         {
             memcpy((char*)data + nullInfo,(char*)buffer + recordOffset + attribOffset, sizeof(int));
-            int tester;
-            memcpy((char*)&tester,(char*)buffer + recordOffset + attribOffset, sizeof(int));
         }
         else if(type == TypeVarChar)
         {
