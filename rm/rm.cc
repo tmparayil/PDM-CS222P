@@ -363,7 +363,7 @@ RC RelationManager::deleteTable(const std::string &tableName) {
     initColumns(columnDescriptor);
 
     //table scan
-    int tableSize = tableName.length()+sizeof(int), tableID;
+    int tableSize = tableName.length()+sizeof(int), tableID = -1;
     void *val = malloc(tableSize);
     int len = tableName.length();
     RID rid;
@@ -385,6 +385,8 @@ RC RelationManager::deleteTable(const std::string &tableName) {
         memcpy(&tableID, (char *)scanResult_tbl + 1,sizeof(int));
         break;
     }
+    if(tableID == -1)
+        return -1;
 
     recordBasedFileManager.deleteRecord(tableHandler,tableDescriptor,rid);
     recordBasedFileManager.closeFile(tableHandler);
@@ -545,6 +547,8 @@ RC RelationManager::insertTuple(const std::string &tableName, const void *data, 
 
     if(!FileExists(tableName))
         return -1;
+    else if(tableName == "Tables" || tableName == "Columns")
+        return -1;
 
     recordBasedFileManager.openFile(tableName, fileHandle);
     std::vector<Attribute> recordDescriptor;
@@ -561,6 +565,9 @@ RC RelationManager::deleteTuple(const std::string &tableName, const RID &rid) {
 
     if(!FileExists(tableName))
         return -1;
+    else if(tableName == "Tables" || tableName == "Columns")
+        return -1;
+
     recordBasedFileManager.openFile(tableName, fileHandle);
     std::vector<Attribute> recordDescriptor;
     getAttributes(tableName,recordDescriptor);
@@ -577,6 +584,9 @@ RC RelationManager::updateTuple(const std::string &tableName, const void *data, 
 
     if(!FileExists(tableName))
         return -1;
+    else if(tableName == "Tables" || tableName == "Columns")
+        return -1;
+
     recordBasedFileManager.openFile(tableName, fileHandle);
     std::vector<Attribute> recordDescriptor;
     getAttributes(tableName,recordDescriptor);
