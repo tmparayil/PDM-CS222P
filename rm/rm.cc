@@ -261,6 +261,16 @@ int RelationManager::findNextId(FileHandle &fileHandle,const std::vector<Attribu
     memcpy((char*)&recordOffset,(char*)buffer + slotPointer, sizeof(int));
     memcpy((char*)&length,(char*)buffer + slotPointer+ sizeof(int), sizeof(int));
 
+    while(recordOffset == -1 && length == -1)
+    {
+        // If no tables are there in Tables table -- will never happen
+//        if(slotPointer == offset)
+//            return 1;
+        slotPointer += (2 * sizeof(int));
+        memcpy((char*)&recordOffset,(char*)buffer + slotPointer, sizeof(int));
+        memcpy((char*)&length,(char*)buffer + slotPointer+ sizeof(int), sizeof(int));
+    }
+
     int tableIdOffset, tableId;
     memcpy((char*)&tableIdOffset,(char*)buffer + recordOffset + sizeof(int), sizeof(int));
 
@@ -371,6 +381,7 @@ RC RelationManager::deleteTable(const std::string &tableName) {
     recordBasedFileManager.scan(tableHandler,tableDescriptor,"table-name",EQ_OP, val, tblid_attr,tableScan);
 
     while(tableScan.getNextRecord(rid,scanResult_tbl) != RBFM_EOF){
+        // + 1 for null bit info
         memcpy(&tableID, (char *)scanResult_tbl + 1,sizeof(int));
         break;
     }
