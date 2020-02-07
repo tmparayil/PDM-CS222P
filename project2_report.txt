@@ -114,7 +114,7 @@ If the length of the record to be updated is -1 but it has some offset value, th
 
 - Delete a record
 
-When deleting a record, we mark the offset and length of that record in the slot directory as -1, so that the incoming records can occupy that space. After this, the succeeding records are moved left and the slot offsets for them are changed. The free space information and pointer to last inserted record is changed. If the record to be deleted has -1 as it's offset in the slot directory, the record is already deleted. If there's a -1 at the length, the record is stored at some other page and we get the page number and slot number and call the deleterecord(..) function with the new rid.
+When deleting a record, we mark the offset and length of that record in the slot directory as -1, so that the incoming records can occupy that space. After this, the succeeding records are moved left and the slot offsets for them are changed. The free space information and pointer to last inserted record is changed. If the record to be deleted has -1 as its offset in the slot directory, the record is already deleted. If there's a -1 at the length, the record is stored at some other page and we get the page number and slot number and call the deleterecord(..) function with the new rid.
 
 
 - Scan
@@ -123,7 +123,7 @@ Given a record descriptor, we read all the entries in the file. The read can als
 
 
 7. Implementation Detail
-
+The tables are first created using the createTables function.Before creating any other tables/files, the Tables and Columns file are created and the createcatalog function inserts the information about the Tables and Columns in the corresponding Tables or Columns file. For each new table, a new file is created and the entries to the Tables and Columns files are made. The relation manager manages the data on the concept of tuples and internally calls the functions of the record based file manager. It basically serves as a layer above the record based file manager.
 
 
 
