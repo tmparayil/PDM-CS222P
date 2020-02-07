@@ -673,11 +673,6 @@ RC RecordBasedFileManager::deleteRecord(FileHandle &fileHandle, const std::vecto
         }
       
             deleteRecord(fileHandle,recordDescriptor,newRID);
-            void* checkData = malloc(PAGE_SIZE);
-            if(readRecord(fileHandle,recordDescriptor,newRID,checkData) != -1)
-                std::cout<<"Deleted record can still be read"<<std::endl;
-            free(checkData);
-
     } else
     {
         int neg = -1;
@@ -751,7 +746,7 @@ RC RecordBasedFileManager::printRecord(const std::vector<Attribute> &recordDescr
                 if(!checkNullBit)
                 {
                     memcpy((char*)&tempInt,(char*)data + offset, sizeof(int));
-                    std::cout<<recordDescriptor[itr].name<<":\t"<<tempInt<<"\t";
+                    std::cout<<recordDescriptor[itr].name<<": "<<tempInt<<" ";
                     offset += sizeof(int);
                 } else
                 {
@@ -762,11 +757,11 @@ RC RecordBasedFileManager::printRecord(const std::vector<Attribute> &recordDescr
                 float tempFloat;
                 if(!checkNullBit) {
                     memcpy((char *) &tempFloat, (char *) data + offset, sizeof(float));
-                    std::cout<<recordDescriptor[itr].name<<":\t"<<tempFloat<<"\t";
+                    std::cout<<recordDescriptor[itr].name<<": "<<tempFloat<<" ";
                     offset += sizeof(float);
                 } else
                 {
-                    std::cout<<recordDescriptor[itr].name<<":\tNULL"<<"\t";
+                    std::cout<<recordDescriptor[itr].name<<": NULL"<<" ";
                 }
                 break;
             case TypeVarChar:
@@ -779,8 +774,8 @@ RC RecordBasedFileManager::printRecord(const std::vector<Attribute> &recordDescr
                     char* tempString = new char[length+1];
                     memcpy(tempString,(char*)data + offset, length);
                     tempString[length] = '\0';
-                    std::cout<<recordDescriptor[itr].name<<":\t";
-                    std::cout<<tempString<<"\t";
+                    std::cout<<recordDescriptor[itr].name<<": ";
+                    std::cout<<tempString<<" ";
                     offset += length;
                     delete[] tempString;
                 } else
@@ -1126,9 +1121,16 @@ RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle, const std::vecto
 
 RC RecordBasedFileManager::readAttribute(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
                                          const RID &rid, const std::string &attributeName, void *data) {
+    bool debugFlag = false;
     void* buffer = malloc(PAGE_SIZE);
+    bool skipFlag = false;
 
-    int nullInfo = ceil((double) recordDescriptor.size() / CHAR_BIT);
+    if(debugFlag)
+    {
+        std::cout<<"RID : "<<rid.pageNum<<" : "<<rid.slotNum<<std::endl;
+    }
+
+    int nullInfo = 1;
     char* bitInfo = new char[nullInfo];
     memset(bitInfo, 0 , nullInfo);
 
@@ -1139,56 +1141,100 @@ RC RecordBasedFileManager::readAttribute(FileHandle &fileHandle, const std::vect
     }
 
     int offset = PAGE_SIZE - (2 * sizeof(int)) - (rid.slotNum * 2 * sizeof(int));
-    int recordOffset;
+    int recordOffset,length;
 
     memcpy((char*)&recordOffset, (char*)buffer + offset, sizeof(int));
-    int attr = -1;
-    int type = -1;
-    for(int i=0;i<recordDescriptor.size();i++)
+    memcpy((char*)&length, (char*)buffer + offset + sizeof(int), sizeof(int));
+
+    if(debugFlag)
     {
-        if(recordDescriptor[i].name == attributeName)
+        std::cout<<"Null info : "<<nullInfo<<std::endl;
+        std::cout<<"offset : "<<offset<<std::endl;
+        std::cout<<"record offset : "<<recordOffset<<std::endl;
+        std::cout<<"length : "<<length<<std::endl;
+        std::cout<<"attribute name : "<<attributeName<<std::endl;
+    }
+
+    if(recordOffset == -1 && length == -1)
+        return -1;
+    else if(recordOffset > 0 && length == -1)
+    {
+        RID newRID;
+        memcpy((char*)&newRID.pageNum,(char*)buffer + recordOffset, sizeof(int));
+        memcpy((char*)&newRID.slotNum,(char*)buffer + recordOffset + sizeof(int), sizeof(int));
+        readRecord(fileHandle,recordDescriptor,newRID,data);
+    } else
+    {
+        int attr = -1;
+        int type = -1;
+        for(int i=0;i<recordDescriptor.size();i++)
         {
-            attr = i;
-            type = recordDescriptor[i].type;
+            if(recordDescriptor[i].name == attributeName) {
+                attr = i;
+                type = recordDescriptor[i].type;
+
+                if(debugFlag)
+                {
+                    std::cout<<"Attr details : "<<attr<< " :  " << type<<std::endl;
+                }
+
+                // BitInfo formation logic
+                int temp;
+                memcpy((char *) &temp, (char *) buffer + recordOffset + sizeof(int) + (sizeof(int) * i), sizeof(int));
+
+                if(debugFlag)
+                {
+                    std::cout<<"Temp value : "<<temp<<std::endl;
+                }
+                int bitShift = 7;
+                if (temp == -1) {
+                    bitInfo[0] = bitInfo[0] | (1 << bitShift);
+                    skipFlag = true;
+                }
+            }
         }
 
-        // BitInfo formation logic
-        int temp;
-        memcpy((char*)&temp,(char*)buffer + sizeof(int) + (sizeof(int) * i), sizeof(int));
-        int bitShift = CHAR_BIT - 1 - i%CHAR_BIT;
-        if(temp == -1)
-            bitInfo[i/CHAR_BIT] = bitInfo[i / CHAR_BIT] | (1 << (bitShift));
-    }
+        memcpy((char*)data,bitInfo,nullInfo);
+        delete[] bitInfo;
+        if(skipFlag)
+        {
+            free(buffer);
+            return 0;
+        }
 
-    int attribOffset;
+        int attribOffset;
 
-    if(attr == -1)
-    {
-        return -1;
-    }
-    else if(attr == 0)
-    {
-        attribOffset = sizeof(int) * (recordDescriptor.size() + 1);
-    } else
-    {
-        attr--;
-    }
+        if(attr == 0)
+        {
+            attribOffset = sizeof(int) * (recordDescriptor.size() + 1);
+        } else if(attr > 0)
+        {
+            attr--;
+            int offset = sizeof(int) + (attr* sizeof(int));
+            memcpy((char*)&attribOffset,(char*)buffer + recordOffset + offset, sizeof(int));
+            while(attribOffset == -1)
+            {
+                if(attr == 0)
+                {
+                    attribOffset = sizeof(int) * (recordDescriptor.size() + 1);
+                    break;
+                }
+                attr--;
+                offset = sizeof(int) + (attr* sizeof(int));
+                memcpy((char*)&attribOffset,(char*)buffer + recordOffset + offset, sizeof(int));
+            }
+        }
 
-    memcpy((char*)&attribOffset,(char*)buffer + recordOffset + sizeof(int) + (attr* sizeof(int)), sizeof(int));
+        if(debugFlag)
+        {
+            std::cout<<"Attrib offset : "<<attribOffset<<std::endl;
+        }
 
-    memcpy((char*)data,bitInfo,nullInfo);
-    delete[] bitInfo;
-
-    // means the attribute is null
-    if(attribOffset == -1)
-    {
-        free(buffer);
-        return 0;
-    } else
-    {
         if(type == TypeReal || type == TypeInt)
         {
             memcpy((char*)data + nullInfo,(char*)buffer + recordOffset + attribOffset, sizeof(int));
+            int tester;
+            memcpy((char*)&tester,(char*)buffer + recordOffset + attribOffset, sizeof(int));
         }
         else if(type == TypeVarChar)
         {
@@ -1197,6 +1243,7 @@ RC RecordBasedFileManager::readAttribute(FileHandle &fileHandle, const std::vect
             memcpy((char*)data + nullInfo,(char*)buffer + recordOffset + attribOffset, sizeof(int) + length);
         }
     }
+
     free(buffer);
     return 0;
 }
@@ -1422,7 +1469,6 @@ RC RBFM_ScanIterator::mappingRecord(const std::vector<Attribute> recordDescripto
  */
 RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data) {
 
-    int returnVal = 0;
     void* buffer = malloc(PAGE_SIZE);
     int MAX_RC_SIZE = PAGE_SIZE - (5 * sizeof(int));
     void* record = malloc(MAX_RC_SIZE);
@@ -1452,10 +1498,9 @@ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data) {
             // >= for the corner case where the first assigned page number = total number of pages
             if(currRID.pageNum >= totalPages)
             {
-                returnVal = RBFM_EOF;
                 free(buffer);
                 free(record);
-                return returnVal;
+                return RBFM_EOF;
             }
             currRID.slotNum = 1;
             fileHandle.readPage(currRID.pageNum,buffer);
@@ -1471,10 +1516,9 @@ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data) {
         currRID.pageNum++;
         if(currRID.pageNum > totalPages)
         {
-            returnVal = RBFM_EOF;
             free(buffer);
             free(record);
-            return returnVal;
+            return RBFM_EOF;
         }
         currRID.slotNum = 1;
     }
@@ -1483,7 +1527,7 @@ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data) {
 
     free(buffer);
     free(record);
-    return returnVal;
+    return 0;
 }
 
 
@@ -1569,6 +1613,8 @@ bool RBFM_ScanIterator::satisfyCondition(const void *record) {
         if(attribOffset == -1)
             return false;
 
+
+
         memcpy((char*)&recordValue,(char*)record + attribOffset - sizeof(int), sizeof(int));
         int compareValue;
         memcpy((char*)&compareValue,value, sizeof(int));
@@ -1650,7 +1696,7 @@ bool RBFM_ScanIterator::satisfyCondition(const void *record) {
             memcpy(compareString,(char*)value + sizeof(int),length);
             compareString[length] = '\0';
 
-            //std::cout<<tempString<<":\t:"<<compareString<<std::endl;
+//            std::cout<<tempString<<":\t:"<<compareString<<std::endl;
             return checkConditionChar(tempString,compareString,comparisonOperator);
         }
     }
