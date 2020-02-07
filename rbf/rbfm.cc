@@ -671,6 +671,7 @@ RC RecordBasedFileManager::deleteRecord(FileHandle &fileHandle, const std::vecto
                 std::cout << "Updated free space : " << freeSpace << std::endl;
             }
         }
+      
             deleteRecord(fileHandle,recordDescriptor,newRID);
             void* checkData = malloc(PAGE_SIZE);
             if(readRecord(fileHandle,recordDescriptor,newRID,checkData) != -1)
@@ -685,7 +686,6 @@ RC RecordBasedFileManager::deleteRecord(FileHandle &fileHandle, const std::vecto
 
         //move records and slots if the record num to be deleted is more than one and not the last record
         int slotct = rid.slotNum;
-
         if (slotct < totalNumSlots) {
             int recEnd = recordStart + recordLength;
             memmove((char*) page + recordStart, (char*)page + recEnd, recordOffset - recEnd);
