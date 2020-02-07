@@ -3,6 +3,8 @@
 
 #include <string>
 #include <vector>
+#include <iostream>
+#include <sys/stat.h>
 
 #include "../rbf/rbfm.h"
 
@@ -10,15 +12,17 @@
 
 // RM_ScanIterator is an iterator to go through tuples
 class RM_ScanIterator {
+
+
 public:
     RM_ScanIterator() = default;
-
+    RBFM_ScanIterator rbfmScanIterator;
     ~RM_ScanIterator() = default;
 
     // "data" follows the same format as RelationManager::insertTuple()
-    RC getNextTuple(RID &rid, void *data) { return RM_EOF; };
+    RC getNextTuple(RID &rid, void *data);
 
-    RC close() { return -1; };
+    RC close();
 };
 
 // Relation Manager
@@ -70,6 +74,14 @@ protected:
     RelationManager(const RelationManager &);                           // Prevent construction by copying
     RelationManager &operator=(const RelationManager &);                // Prevent assignment
 
+    RC initTables(std::vector<Attribute>& recordDescriptor);
+    RC initColumns(std::vector<Attribute>& recordDescriptor);
+    RC initTableRecord(void* record);
+    RC initColumnRecord(void* record);
+    RC prepareColumnRecord(int tableId,Attribute attribute,void* record,int pos);
+    int findNextId(FileHandle& fileHandle,const std::vector<Attribute>& recordDescriptor);
+    RC prepareTableRecord(const int tableId,const std::string& tableName,const std::string& fileName,const int version, void* record);
+    bool FileExists(const std::string &fileName);
 };
 
 #endif
