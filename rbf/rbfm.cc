@@ -785,7 +785,7 @@ RC RecordBasedFileManager::printRecord(const std::vector<Attribute> &recordDescr
                     delete[] tempString;
                 } else
                 {
-                    std::cout<<recordDescriptor[itr].name<<": NULL "<<"\t";
+                    std::cout<<recordDescriptor[itr].name<<": NULL"<<" ";
                 }
                 break;
         }
