@@ -32,7 +32,7 @@ void initialise(std::fstream &file)
     int recordNum = 0;
     int readCount = 0;
     int writeCount = 0;
-    int appendCount = 0;
+    int appendCount = 1;
 
     // First time creation of hidden page
     memcpy((char*)buffer,(char*)&temp,HEADER_SIZE);
