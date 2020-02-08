@@ -546,8 +546,8 @@ RC RecordBasedFileManager::readRecord(FileHandle &fileHandle, const std::vector<
         }
         memcpy(data,record,newSize);
         free(record);
-        free(buffer);
     }
+    free(buffer);
     return 0;
 }
 
@@ -1672,7 +1672,10 @@ bool RBFM_ScanIterator::satisfyCondition(const void *record) {
             memcpy(compareString,(char*)value + sizeof(int),length);
             compareString[length] = '\0';
 
-            return checkConditionChar(tempString,compareString,comparisonOperator);
+            bool ret = checkConditionChar(tempString,compareString,comparisonOperator);
+            delete[] tempString;
+            delete[] compareString;
+            return ret;
         }
         else
         {
@@ -1711,7 +1714,10 @@ bool RBFM_ScanIterator::satisfyCondition(const void *record) {
             compareString[length] = '\0';
 
 //            std::cout<<tempString<<":\t:"<<compareString<<std::endl;
-            return checkConditionChar(tempString,compareString,comparisonOperator);
+            bool ret = checkConditionChar(tempString,compareString,comparisonOperator);
+            delete[] tempString;
+            delete[] compareString;
+            return ret;
         }
     }
 
