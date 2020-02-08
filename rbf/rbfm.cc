@@ -639,8 +639,10 @@ RC RecordBasedFileManager::deleteRecord(FileHandle &fileHandle, const std::vecto
             memmove((char *) page + recordStart, (char *) page + recEnd, recordOffset - recEnd);
 
             //updating the offsets of the remaining slots
-            for (int i = rid.slotNum + 1; i <= totalNumSlots; i++) {
-                offset -= (2 * sizeof(int));
+            for (int i = 1; i <= totalNumSlots; i++,offset -= (2* sizeof(int))) {
+                if(i == rid.slotNum)
+                    continue;
+                offset = PAGE_SIZE - (2 * sizeof(int)) - (2 * sizeof(int) * i);
                 int recPtr;
                 memcpy((char *) &recPtr, (char *) page + offset, sizeof(int));
 
@@ -686,8 +688,11 @@ RC RecordBasedFileManager::deleteRecord(FileHandle &fileHandle, const std::vecto
             memmove((char*) page + recordStart, (char*)page + recEnd, recordOffset - recEnd);
 
             //updating the offsets of the remaining slots
-            for (int i = slotct + 1 ; i <= totalNumSlots; i++) {
-                offset -= 2 * sizeof(int);
+            //updating the offsets of the remaining slots
+            for (int i = 1; i <= totalNumSlots; i++,offset -= (2* sizeof(int))) {
+                if(i == rid.slotNum)
+                    continue;
+                offset = PAGE_SIZE - (2 * sizeof(int)) - (2 * sizeof(int) * i);
                 int recPtr;
                 memcpy((char*)&recPtr, (char*) page + offset, sizeof(int));
 
@@ -750,7 +755,7 @@ RC RecordBasedFileManager::printRecord(const std::vector<Attribute> &recordDescr
                     offset += sizeof(int);
                 } else
                 {
-                    std::cout<<recordDescriptor[itr].name<<":\tNULL"<<"\t";
+                    std::cout<<recordDescriptor[itr].name<<": NULL"<<" ";
                 }
                 break;
             case TypeReal:
@@ -780,7 +785,7 @@ RC RecordBasedFileManager::printRecord(const std::vector<Attribute> &recordDescr
                     delete[] tempString;
                 } else
                 {
-                    std::cout<<recordDescriptor[itr].name<<":\tNULL"<<"\t";
+                    std::cout<<recordDescriptor[itr].name<<": NULL "<<"\t";
                 }
                 break;
         }
@@ -909,8 +914,11 @@ RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle, const std::vecto
             offset = PAGE_SIZE - (2 * sizeof(int)) - (2 * sizeof(int)*rid.slotNum);
 
             if (rid.slotNum < totalNumSlots) {
-                for (int i = rid.slotNum + 1; i <= totalNumSlots; i++) {
-                    offset -= (2 * sizeof(int));
+                //updating the offsets of the remaining slots
+                for (int i = 1; i <= totalNumSlots; i++,offset -= (2* sizeof(int))) {
+                    if(i == rid.slotNum)
+                        continue;
+                    offset = PAGE_SIZE - (2 * sizeof(int)) - (2 * sizeof(int) * i);
                     int recPtr;int length;
                     memcpy((char*)&recPtr, (char*) page + offset, sizeof(int));
                     memcpy((char*)&length, (char*) page + offset + sizeof(int), sizeof(int));
@@ -983,8 +991,11 @@ RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle, const std::vecto
                 //updating the offsets of the remaining slots
 
                 if (rid.slotNum < totalNumSlots) {
-                    for (int i = rid.slotNum + 1; i <= totalNumSlots; i++) {
-                        offset -= 2 * sizeof(int);
+                    //updating the offsets of the remaining slots
+                    for (int i = 1; i <= totalNumSlots; i++,offset -= (2* sizeof(int))) {
+                        if(i == rid.slotNum)
+                            continue;
+                        offset = PAGE_SIZE - (2 * sizeof(int)) - (2 * sizeof(int) * i);
                         int recPtr; int length;
                         memcpy((char *) &recPtr, (char *) page + offset, sizeof(int));
                         memcpy((char *) &length, (char *) page + offset + sizeof(int), sizeof(int));
@@ -1058,8 +1069,11 @@ RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle, const std::vecto
                 //updating the offsets of other records in slots
                 int offsetForSlots = curr_recordLength - bytesForPtrRec;
                 if (rid.slotNum < totalNumSlots) {
-                    for (int i = rid.slotNum + 1; i <= totalNumSlots; i++) {
-                        offset -= (2 * sizeof(int));
+                    //updating the offsets of the remaining slots
+                    for (int i = 1; i <= totalNumSlots; i++,offset -= (2* sizeof(int))) {
+                        if(i == rid.slotNum)
+                            continue;
+                        offset = PAGE_SIZE - (2 * sizeof(int)) - (2 * sizeof(int) * i);
                         int recPtr, recLength;
                         memcpy((char *)&recPtr, (char *) page + offset, sizeof(int));
                         memcpy((char *)&recLength, (char *) page + offset + sizeof(int), sizeof(int));
@@ -1233,6 +1247,8 @@ RC RecordBasedFileManager::readAttribute(FileHandle &fileHandle, const std::vect
         if(type == TypeReal || type == TypeInt)
         {
             memcpy((char*)data + nullInfo,(char*)buffer + recordOffset + attribOffset, sizeof(int));
+            int tester;
+            memcpy((char*)&tester,(char*)buffer + recordOffset + attribOffset, sizeof(int));
         }
         else if(type == TypeVarChar)
         {
