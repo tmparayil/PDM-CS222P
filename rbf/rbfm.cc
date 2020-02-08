@@ -546,8 +546,8 @@ RC RecordBasedFileManager::readRecord(FileHandle &fileHandle, const std::vector<
         }
         memcpy(data,record,newSize);
         free(record);
+        free(buffer);
     }
-    free(buffer);
     return 0;
 }
 
