@@ -40,14 +40,14 @@ Columns
 Internal Record Format:
 
   ---------------------------------------------------------------------------------------------------------------------------
-  | Ptr           | Ptr           |Ptr             |  Varchar | Actual   | TypeInt |  TypeReal  |
-  | to end        | to end        |to end          |  length  | data     | data    |  data      |
-  | of 1st field  | of 2nd field  |of 3rd field    |  info    |          |         |            |
+   Version   | Ptr           | Ptr           |Ptr             |  Varchar | Actual   | TypeInt |  TypeReal  |
+             | to end        | to end        |to end          |  length  | data     | data    |  data      |
+     Info    | of 1st field  | of 2nd field  |of 3rd field    |  info    |          |         |            |
   ----------------------------------------------------------------------------------------------------------------------------
 
 
 
-The  fields in the record have a pointer at the start of the record that points to the end of that particular field(4 bytes each). Thus, we can access any field value using this information in O(1) time complexity.As shown above, if we have a record with 3 fields and their types are : VarChar, Int and Real respectively. If some field has Null value, no extra space is allocated to that field and the pointer value for that field will be set to -1. If we want to access the field with TypeInt data, we can directly access it in constant time complexity by using the pointer to the 2nd field.
+The start of the records have the version information(4 bytes).The  fields in the record have a pointer at the start of the record that points to the end of that particular field(4 bytes each). Thus, we can access any field value using this information in O(1) time complexity.As shown above, if we have a record with 3 fields and their types are : VarChar, Int and Real respectively. If some field has Null value, no extra space is allocated to that field and the pointer value for that field will be set to -1. If we want to access the field with TypeInt data, we can directly access it in constant time complexity by using the pointer to the 2nd field.
 
 
 - Describe how you store a VarChar field.
@@ -82,8 +82,8 @@ If the value is not NULL, we allocate space depending upon the type of the field
  |											    |
  |											    |	
  |			   -----------------------------------------------------------------|	
- |			   |  slot2 | slot2 | slot1  | slot1   |last_slot    | last_inserted|
- | 	                   |offset  | length| offset | length  |    ptr      |   record ptr |
+ |			   |  slot2 | slot2 | slot1  | slot1   |last_inserted    | last_slot|
+ | 	                   |offset  | length| offset | length  | record   ptr    |      ptr |
  ---------------------------------------------------------------------------------------------
 
 
