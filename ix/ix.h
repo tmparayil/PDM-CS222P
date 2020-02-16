@@ -3,8 +3,10 @@
 
 #include <vector>
 #include <string>
+#include <iostream>
 
 #include "../rbf/rbfm.h"
+
 
 # define IX_EOF (-1)  // end of the index scan
 
@@ -48,6 +50,29 @@ public:
     void printBtree(IXFileHandle &ixFileHandle, const Attribute &attribute) const;
 
 protected:
+    int getRootPage(IXFileHandle &ixFileHandle);
+    void insertIntoPage(IXFileHandle &ixFileHandle,const Attribute &attribute,int currPage,const void* newKey,void* returnedChild,int& n1,int& n2,int& length);
+    void setRootPage(IXFileHandle &ixFileHandle,void* entry,int length);
+    void setRootInHidden(IXFileHandle &ixFileHandle,int rootNum);
+    bool validRootPage(const void* page);
+    bool isLeaf(const void* page);
+    bool isInter(const void* page);
+    int getLengthOfEntry(const void* key,const Attribute& attribute);
+    bool isSpaceAvailable(const void* page,int length);
+    int getSpaceOnPage(const void* page);
+    void setSpaceOnPage(const void *page,int space);
+    int getSlotOnPage(const void* page);
+    void setSlotOnPage(const void *page,int space);
+    void addToPage(void* page,const void* newKey,const Attribute &attribute);
+    int compareInt(const void* entry,const void* recordOnPage);
+    int compareReal(const void* entry,const void* recordOnPage);
+    int compareVarChar(const void* entry,const void* recordOnPage);
+    void newLeafPage(void* page);
+    void newInterPage(void* page);
+
+
+
+protected:
     IndexManager() = default;                                                   // Prevent construction
     ~IndexManager() = default;                                                  // Prevent unwanted destruction
     IndexManager(const IndexManager &) = default;                               // Prevent construction by copying
@@ -73,12 +98,6 @@ public:
 
 class IXFileHandle {
 public:
-
-    // variables to keep counter for each operation
-    unsigned ixReadPageCounter;
-    unsigned ixWritePageCounter;
-    unsigned ixAppendPageCounter;
-
     // Constructor
     IXFileHandle();
 
@@ -87,6 +106,18 @@ public:
 
     // Put the current counter values of associated PF FileHandles into variables
     RC collectCounterValues(unsigned &readPageCount, unsigned &writePageCount, unsigned &appendPageCount);
+
+    RC readPage(PageNum pageNum, void *data);                           // Get a specific page
+    RC writePage(PageNum pageNum, const void *data);                    // Write a specific page
+    RC appendPage(const void *data);                                    // Append a specific page
+    unsigned getNumberOfPages();                                        // Get the number of pages in the file
+
+    std::fstream* file;
+    std::fstream* getFile();
+    void setFile(std::string& fileName);
+    void closeFile();
+
+    bool check_file_stream();
 
 };
 
