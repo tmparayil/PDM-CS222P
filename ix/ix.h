@@ -62,7 +62,7 @@ protected:
     int getSpaceOnPage(const void* page);
     void setSpaceOnPage(const void *page,int space);
     int getSlotOnPage(const void* page);
-    void setSlotOnPage(const void *page,int space);
+    void setSlotOnPage(const void *page,int slot);
     void addToPage(void* page,const void* newKey,const Attribute &attribute);
     int compareInt(const void* entry,const void* recordOnPage);
     int compareReal(const void* entry,const void* recordOnPage);
@@ -70,6 +70,7 @@ protected:
     void newLeafPage(void* page);
     void newInterPage(void* page);
     int splitLeaf(IXFileHandle &ixFileHandle,void* page,void* newPage);
+    int splitLeafVarchar(IXFileHandle &ixFileHandle,void* page,void* newPage);
 
 
 

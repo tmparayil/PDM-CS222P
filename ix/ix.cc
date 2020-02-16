@@ -383,10 +383,10 @@ void IndexManager::addToPage(void *page, const void *newKey,const Attribute &att
         memcpy((char*)page + offset,(char*)newKey,12);
         space -= 12;
         setSpaceOnPage(page,space);
+        setSlotOnPage(page,numSlots + 1);
         return;
     }
-
-    if(attribute.type == TypeReal)
+    else if(attribute.type == TypeReal)
     {
         for(int i=0;i<numSlots;i++)
         {
@@ -416,9 +416,10 @@ void IndexManager::addToPage(void *page, const void *newKey,const Attribute &att
         memcpy((char*)page + offset,(char*)newKey,12);
         space -= 12;
         setSpaceOnPage(page,space);
+        setSlotOnPage(page,numSlots + 1);
         return;
     }
-    if(attribute.type == TypeVarChar)
+    else if(attribute.type == TypeVarChar)
     {
         for(int i=0;i<numSlots;i++)
         {
@@ -451,6 +452,7 @@ void IndexManager::addToPage(void *page, const void *newKey,const Attribute &att
         memcpy((char*)page + offset,(char*)newKey,12+length);
         space -= (12 + length);
         setSpaceOnPage(page,space);
+        setSlotOnPage(page,numSlots + 1);
         return;
     }
 
@@ -465,7 +467,7 @@ int IndexManager::splitLeaf(IXFileHandle &ixFileHandle, void *page, void *newPag
     int shiftSize = (PAGE_SIZE - freeSpace) - offset;
     int newSlot = shiftSize / 12;
     memcpy((char*)newPage + 10,(char*)page + offset,shiftSize);
-    int newSpace = PAGE_SIZE - 10 - shiftSize;
+    int newSpace = PAGE_SIZE - 10 - 4 - shiftSize;
     setSpaceOnPage(newPage,newSpace);
     setSlotOnPage(newPage,newSlot);
 
@@ -485,6 +487,42 @@ int IndexManager::splitLeaf(IXFileHandle &ixFileHandle, void *page, void *newPag
     return newPageNum;
 }
 
+int IndexManager::splitLeafVarchar(IXFileHandle &ixFileHandle, void *page, void *newPage) {
+
+    int slots = getSlotOnPage(page);
+    int offset = 10;
+    int length,ptr;
+    for(int i=1;i<=slots;i++)
+    {
+        if(offset > (PAGE_SIZE/2))
+        {
+            ptr = i;
+            break;
+        }
+        memcpy((char*)&length,(char*)page + offset, sizeof(int));
+        offset += (length + 12);
+    }
+    int shiftSize = PAGE_SIZE - getSpaceOnPage(page) - offset;
+    memcpy((char*)newPage + 10,(char*)page + offset,shiftSize);
+    setSpaceOnPage(newPage,PAGE_SIZE - 10 - 4 - shiftSize);
+    setSlotOnPage(newPage,slots - ptr);
+
+    setSpaceOnPage(page,getSpaceOnPage(page) + shiftSize);
+    setSlotOnPage(page,ptr);
+
+    // Copying sibling pointer from curr page to new page
+    int currSiblingPtr;
+    memcpy((char*)&currSiblingPtr,(char*)page + PAGE_SIZE - sizeof(int), sizeof(int));
+    memcpy((char*)newPage + PAGE_SIZE - sizeof(int),(char*)&currSiblingPtr, sizeof(int));
+    ixFileHandle.appendPage(newPage);
+    int newPageNum = ixFileHandle.getNumberOfPages();
+
+    //updating curr Page sibling pointer to new page
+    memcpy((char*)page + PAGE_SIZE - sizeof(int),(char*)&newPageNum, sizeof(int));
+
+    return newPageNum;
+}
+
 //Actual insert function
 void IndexManager::insertIntoPage(IXFileHandle &ixFileHandle, const Attribute &attribute,int currPage,
                                   const void *newKey, void *returnedChild, int &n1, int &n2, int &length) {
@@ -499,12 +537,6 @@ void IndexManager::insertIntoPage(IXFileHandle &ixFileHandle, const Attribute &a
             addToPage(page,newKey,attribute);
         } else
         {
-            // find middle element
-            // split happens here
-            // n1 == callingPageNum
-            // n2 == new split page
-            // assign values to n1,n2,length and returnedChild
-
             if(attribute.type == TypeInt)
             {
                 void* newPage = malloc(PAGE_SIZE);
@@ -541,7 +573,7 @@ void IndexManager::insertIntoPage(IXFileHandle &ixFileHandle, const Attribute &a
                 }
                 else if(compare1 > 0 && compare2 < 0)
                 {
-                    int shiftSize = PAGE_SIZE - getSpaceOnPage(newPage) - 10;
+                    int shiftSize = PAGE_SIZE - 4 - getSpaceOnPage(newPage) - 10;
                     //shift all records in new page + 12
                     memmove((char*)newPage + 10 + 12,(char*)newPage + 10 , shiftSize);
                     memcpy((char*)newPage + 10,(char*)newKey,12);
@@ -554,6 +586,113 @@ void IndexManager::insertIntoPage(IXFileHandle &ixFileHandle, const Attribute &a
                 free(page);
                 return;
                 // Verify for bugs
+            }
+            else if(attribute.type == TypeReal)
+            {
+                void* newPage = malloc(PAGE_SIZE);
+                newLeafPage(newPage);
+
+                int newPageNum = splitLeaf(ixFileHandle, page,newPage);
+
+                n1 = currPage;
+                n2 = newPageNum;
+                length = 12;
+
+                int offset = (170 * 3 * sizeof(int)) + 10;
+                // Inserting the new entry into either of these pages
+                void* lastRecOnCurrPage = malloc(12);
+                memcpy((char*)lastRecOnCurrPage,(char*)page + offset - (3* sizeof(int)),12);
+
+                void* firstRecOnNewPage = malloc(12);
+                memcpy((char*)firstRecOnNewPage,(char*)newPage + 10,12);
+
+                int compare1 = compareReal(newKey,lastRecOnCurrPage);
+                int compare2 = compareReal(newKey,firstRecOnNewPage);
+
+                if(compare1 < 0)
+                {
+                    addToPage(page,newKey,attribute);
+                    memcpy(returnedChild,firstRecOnNewPage,12);
+                    ixFileHandle.writePage(currPage,page);
+                }
+                else if(compare2 > 0)
+                {
+                    addToPage(newPage,newKey,attribute);
+                    memcpy(returnedChild,firstRecOnNewPage,12);
+                    ixFileHandle.writePage(newPageNum,newPage);
+                }
+                else if(compare1 > 0 && compare2 < 0)
+                {
+                    int shiftSize = PAGE_SIZE - 4 - getSpaceOnPage(newPage) - 10;
+                    //shift all records in new page + 12
+                    memmove((char*)newPage + 10 + 12,(char*)newPage + 10 , shiftSize);
+                    memcpy((char*)newPage + 10,(char*)newKey,12);
+                    memcpy(returnedChild,newKey,12);
+                    ixFileHandle.writePage(newPageNum,newPage);
+                }
+                free(lastRecOnCurrPage);
+                free(firstRecOnNewPage);
+                free(newPage);
+                free(page);
+                return;
+            }
+            else if(attribute.type == TypeVarChar)
+            {
+                void* newPage = malloc(PAGE_SIZE);
+                newLeafPage(newPage);
+
+                int newPageNum = splitLeafVarchar(ixFileHandle,page,newPage);
+                n1 = currPage;
+                n2 = newPageNum;
+
+                int offset = 10; int length;
+
+                // To get the start of the last record
+                for(int i=1;i<getSlotOnPage(page);i++)
+                {
+                    memcpy((char*)&length, (char*)page + offset, sizeof(int));
+                    offset += (length + 12);
+                }
+
+                memcpy((char*)&length, (char*)page + offset, sizeof(int));
+                void* lastRecOnCurrPage = malloc(length + 12);
+                memcpy(lastRecOnCurrPage,(char*)page + offset, length + 12);
+
+                memcpy((char*)&length,(char*)newPage+10, sizeof(int));
+                void* firstRecOnNewPage = malloc(length + 12);
+                memcpy(firstRecOnNewPage,(char*)newPage + 10,length + 12);
+
+                int compare1 = compareVarChar(newKey,lastRecOnCurrPage);
+                int compare2 = compareVarChar(newKey,firstRecOnNewPage);
+
+                if(compare1 < 0)
+                {
+                    addToPage(page,newKey,attribute);
+                    memcpy(returnedChild,firstRecOnNewPage,length + 12);
+                    ixFileHandle.writePage(currPage,page);
+                }
+                else if(compare2 > 0)
+                {
+                    addToPage(newPage,newKey,attribute);
+                    memcpy(returnedChild,firstRecOnNewPage,length + 12);
+                    ixFileHandle.writePage(newPageNum,newPage);
+                }
+                else if(compare1 > 0 && compare2 < 0)
+                {
+                    int shiftSize = PAGE_SIZE - 4 - getSpaceOnPage(newPage) - 10;
+                    int lengthOfRec;
+                    memcpy((char*)&lengthOfRec,(char*)newKey, sizeof(int));
+                    //shift all records in new page + 12
+                    memmove((char*)newPage + 10 + 12 + lengthOfRec,(char*)newPage + 10 , shiftSize);
+                    memcpy((char*)newPage + 10,(char*)newKey,lengthOfRec + 12);
+                    memcpy(returnedChild,newKey,lengthOfRec + 12);
+                    ixFileHandle.writePage(newPageNum,newPage);
+                }
+                free(lastRecOnCurrPage);
+                free(firstRecOnNewPage);
+                free(newPage);
+                free(page);
+                return;
             }
         }
     } else if(isInter(page))
