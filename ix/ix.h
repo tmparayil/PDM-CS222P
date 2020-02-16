@@ -47,6 +47,16 @@ public:
     // Print the B+ tree in pre-order (in a JSON record format)
     void printBtree(IXFileHandle &ixFileHandle, const Attribute &attribute) const;
 
+
+
+    //helper functions
+
+    void printCurrentNode(IXFileHandle &ixFileHandle, const Attribute &attribute, int pageNum, int newNode) const;
+    bool isLeaf(const void *page) const;
+    bool isInter(const void *page) const;
+
+    //helper functions end
+
 protected:
     IndexManager() = default;                                                   // Prevent construction
     ~IndexManager() = default;                                                  // Prevent unwanted destruction
@@ -91,4 +101,10 @@ public:
 
 };
 
+
+//helper functions general
+
+RC  getRoot(IXFileHandle &ixFileHandle);
+
+//helper functions general !
 #endif

@@ -1,4 +1,5 @@
 #include "ix.h"
+#include <iostream>
 
 IndexManager &IndexManager::instance() {
     static IndexManager _index_manager = IndexManager();
@@ -24,7 +25,23 @@ RC IndexManager::openFile(const std::string &fileName, IXFileHandle &ixFileHandl
 RC IndexManager::closeFile(IXFileHandle &ixFileHandle) {
     return PagedFileManager::instance().closeFile(ixFileHandle.fileHandle);
 }
+/*
+RC IndexManager::compareInt(void *entry, void *recordOnPage){
+    int entryKey, entrySlotNum, entryPageNum;
+    int recordKey, recordSlotNum, recordPageNum;
+    memcpy(&entryKey,(char *)entry, sizeof(int));
+    memcpy(&entryPageNum,(char *)entry + sizeof(int), sizeof(int));
+    memcpy(&entrySlotNum,(char *)entry + 2 * sizeof(int), sizeof(int));
 
+    memcpy(&recordKey,(char *)recordOnPage, sizeof(int));
+    memcpy(&recordPageNum,(char *)recordOnPage + sizeof(int), sizeof(int));
+    memcpy(&recordSlotNum,(char *)recordOnPage + 2 * sizeof(int), sizeof(int));
+    if(recordKey < entryKey or recordPageNum  ?? entryPageNum)
+        return 1;
+    return -1
+
+}
+*/
 RC IndexManager::insertEntry(IXFileHandle &ixFileHandle, const Attribute &attribute, const void *key, const RID &rid) {
 
 
@@ -48,6 +65,230 @@ RC IndexManager::scan(IXFileHandle &ixFileHandle,
 }
 
 void IndexManager::printBtree(IXFileHandle &ixFileHandle, const Attribute &attribute) const {
+
+    //check if a B+ tree exists
+    int rootKeysCount = getRoot(ixFileHandle), newNode = 0;
+    if(rootKeysCount < 0) {
+        std::cout<<"B+ tree doesn't exist"<<std::endl;
+        return;
+    }
+
+    // Start with root -> pageNum -> 0
+    printCurrentNode(ixFileHandle, attribute, 0, newNode);
+
+}
+int getRoot(IXFileHandle &ixFileHandle){
+
+    //No root if the file has no pages, return -1
+    if(!ixFileHandle.fileHandle.getNumberOfPages())
+        return -1;
+
+    //open file and get the number of keys on root page and return the same
+    int rootPageNum = 0, offset = 10;
+    void *pageData = malloc(PAGE_SIZE);
+    ixFileHandle.fileHandle.readPage(0, pageData);
+    memcpy(&rootPageNum, (char *)pageData + offset + sizeof(int), sizeof(int));
+    free(pageData);
+    return rootPageNum;
+
+}
+bool IndexManager::isLeaf(const void *page) const{
+
+    char* checkArr = new char[2];
+    memcpy((char*)checkArr,(char*)page, 2*sizeof(char));
+
+    if(checkArr[1] == 'L') {
+        delete[] checkArr;
+        return true;
+    }
+
+    delete[] checkArr;
+    return false;
+}
+
+bool IndexManager::isInter(const void *page) const{
+
+    char* checkArr = new char[2];
+    memcpy((char*)checkArr,(char*)page, 2*sizeof(char));
+
+    if(checkArr[0] == 'I') {
+        delete[] checkArr;
+        return true;
+    }
+
+    delete[] checkArr;
+    return false;
+}
+void IndexManager:: printCurrentNode(IXFileHandle &ixFileHandle, const Attribute &attribute, int pageNum, int newNode) const{
+
+
+    //read the page and get the number of records on that page
+    void *pageData = malloc(PAGE_SIZE);
+    ixFileHandle.fileHandle.readPage(pageNum, pageData);
+    int headerOffset = 10, numOfKeysCount = 0;
+    memcpy(&numOfKeysCount, (char*)pageData + headerOffset - sizeof(int), sizeof(int) );
+
+
+
+
+    //getting the type of the current node
+    bool isleaf, isIntermed;
+    isleaf = isLeaf(pageData);
+    isIntermed = isInter(pageData);
+
+
+
+
+    std::cout<<"{";
+
+    //check if it's the root in which case print the start of the json string
+    if(pageNum == getRoot(ixFileHandle) && !isleaf){
+        std::cout << "\n";
+    }
+    std::cout << "\"keys\": [";
+
+    //get the number of records on that page
+    int numRecords;
+    memcpy(&numRecords, (char*)pageData + 6, sizeof(int));
+
+    RID currRID;
+    //if leaf node print the data too
+
+    if(isleaf){
+        switch(attribute.type){
+            case TypeInt:
+                    for (int i = 0; i < numRecords; i++)
+                    {
+                        int key;
+
+                        //header + P0 + 3*i*sizeof(int)
+                        memcpy(&key, (char*)pageData + 10  + 2* sizeof(int) + 3*i*sizeof(int), sizeof(int));
+                        memcpy(&currRID.pageNum, (char*)pageData + 10 + 3* sizeof(int) + 3* sizeof(int)*i, sizeof(int));
+                        memcpy(&currRID.slotNum, (char*)pageData + 10 + 4* sizeof(int) + 3* sizeof(int)*i, sizeof(int));
+
+
+                        if (!newNode)
+                        {
+                            newNode = true;
+                        }
+
+                            if (newNode && i > 0)
+                                std::cout << "]\", ";
+                            std::cout << "\"" ;
+                            std::cout << key <<  ": [(" << currRID.pageNum << ", "<< currRID.slotNum << ")";
+                    }
+                     break;
+            case TypeReal:
+                for (int i = 0; i < numRecords; i++)
+                {
+                    float key;
+
+                    //header + P0 + 3*i*sizeof(int)
+                    memcpy(&key, (char*)pageData + 10  + 2* sizeof(int) + 3*i*sizeof(int), sizeof(int));
+                    memcpy(&currRID.pageNum, (char*)pageData + 10 + 3* sizeof(int) + 3* sizeof(int)*i, sizeof(int));
+                    memcpy(&currRID.slotNum, (char*)pageData + 10 + 4* sizeof(int) + 3* sizeof(int)*i, sizeof(int));
+
+
+                    if (!newNode)
+                    {
+                        newNode = true;
+                    }
+
+                    if (newNode && i > 0)
+                        std::cout << "]\", ";
+                    std::cout << "\"" ;
+                    std::cout << key <<  ": [(" << currRID.pageNum << ", "<< currRID.slotNum << ")";
+                }
+
+                break;
+
+            case TypeVarChar:
+
+                break;
+
+        }
+
+
+
+
+
+
+
+    }
+    //if non leaf node print the key values
+    else{
+
+        switch(attribute.type){
+            case TypeInt:
+
+                for (int i = 0; i < numRecords; i++) // key_2 to key_m
+                {
+                    int key;
+
+                    //header + P0 + 3*i*sizeof(int)
+                    memcpy(&key, (char*)pageData + 10  + 2* sizeof(int) + 3*i*sizeof(int), sizeof(int));
+                    if (i > 0)
+                        std::cout << ", ";
+                    std::cout << "\"" << key << "\"";
+                }
+                // Print m+1 children
+                std::cout << "],\n\"children\": [\n"; // End of keys and start of children
+                for (int i = 0; i <= numRecords; i++) // child_1 to child_m
+                {
+                    if (i > 0)
+                        std::cout << ",\n"; // Separator of children of more than 1
+                    int pageNum;
+                    memcpy(&pageNum, (char*)pageData + 10 + 3* sizeof(int) + 3* sizeof(int)*i, sizeof(int));
+                    if (pageNum >=0)
+                        printCurrentNode(ixFileHandle, attribute, pageNum, newNode);
+                    else
+                        std::cout << "{\"keys\": [\"\"]}"; // Empty child
+                }
+
+
+                break;
+            case TypeReal:
+
+                for (int i = 0; i < numRecords; i++) // key_2 to key_m
+                {
+                    float key;
+
+                    //header + P0 + 3*i*sizeof(int)
+                    memcpy(&key, (char*)pageData + 10  + 2* sizeof(int) + 3*i*sizeof(int), sizeof(int));
+                    if (i > 0)
+                        std::cout << ", ";
+                    std::cout << "\"" << key << "\"";
+                }
+                // cout m + 1 children
+                std::cout << "],\n\"children\": [\n"; // End of keys and start of children
+                for (int i = 0; i <= numRecords; i++) // child_1 to child_m
+                {
+                    if (i > 0)
+                        std::cout << ",\n"; // Separator of children of more than 1
+                    int pageNum;
+                    memcpy(&pageNum, (char*)pageData + 10 + 3* sizeof(int) + 3* sizeof(int)*i, sizeof(int));
+                    if (pageNum >=0)
+                        printCurrentNode(ixFileHandle, attribute, pageNum, newNode);
+                    else
+                        std::cout << "{\"keys\": [\"\"]}"; // Empty child
+                }
+
+
+                break;
+
+            case TypeVarChar:
+                break;
+        }
+        std::cout << "]";
+
+    }
+    free(pageData);
+    if (!isIntermed && !isleaf)
+       std:: cout << "\n";
+    std::cout << "}";
+
+
+
 }
 
 IX_ScanIterator::IX_ScanIterator() {
