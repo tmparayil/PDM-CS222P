@@ -456,6 +456,35 @@ void IndexManager::addToPage(void *page, const void *newKey,const Attribute &att
 
 }
 
+int IndexManager::splitLeaf(IXFileHandle &ixFileHandle, void *page, void *newPage) {
+
+    // ~ 340 records need to be in curr page.
+    // Shifting all records > 170 to new page
+    int offset = (170 * 3 * sizeof(int)) + 10;
+    int freeSpace = getSpaceOnPage(page);
+    int shiftSize = (PAGE_SIZE - freeSpace) - offset;
+    int newSlot = shiftSize / 12;
+    memcpy((char*)newPage + 10,(char*)page + offset,shiftSize);
+    int newSpace = PAGE_SIZE - 10 - shiftSize;
+    setSpaceOnPage(newPage,newSpace);
+    setSlotOnPage(newPage,newSlot);
+
+    // Copying sibling pointer from curr page to new page
+    int currSiblingPtr;
+    memcpy((char*)&currSiblingPtr,(char*)page + PAGE_SIZE - sizeof(int), sizeof(int));
+    memcpy((char*)newPage + PAGE_SIZE - sizeof(int),(char*)&currSiblingPtr, sizeof(int));
+    ixFileHandle.appendPage(newPage);
+    int newPageNum = ixFileHandle.getNumberOfPages();
+
+    //updating curr Page sibling pointer to new page
+    memcpy((char*)page + PAGE_SIZE - sizeof(int),(char*)&newPageNum, sizeof(int));
+    freeSpace = PAGE_SIZE - offset;
+    setSpaceOnPage(page,freeSpace);
+    setSlotOnPage(page,170);
+
+    return newPageNum;
+}
+
 //Actual insert function
 void IndexManager::insertIntoPage(IXFileHandle &ixFileHandle, const Attribute &attribute,int currPage,
                                   const void *newKey, void *returnedChild, int &n1, int &n2, int &length) {
@@ -481,34 +510,13 @@ void IndexManager::insertIntoPage(IXFileHandle &ixFileHandle, const Attribute &a
                 void* newPage = malloc(PAGE_SIZE);
                 newLeafPage(newPage);
 
-                // ~ 340 records need to be in curr page.
-                // Shifting all records > 170 to new page
-                int offset = (170 * 3 * sizeof(int)) + 10;
-                int freeSpace = getSpaceOnPage(page);
-                int shiftSize = (PAGE_SIZE - freeSpace) - offset;
-                int newSlot = shiftSize / 12;
-                memcpy((char*)newPage + 10,(char*)page + offset,shiftSize);
-                int newSpace = PAGE_SIZE - 10 - shiftSize;
-                setSpaceOnPage(newPage,newSpace);
-                setSlotOnPage(newPage,newSlot);
-
-                // Copying sibling pointer from curr page to new page
-                int currSiblingPtr;
-                memcpy((char*)&currSiblingPtr,(char*)page + PAGE_SIZE - sizeof(int), sizeof(int));
-                memcpy((char*)newPage + PAGE_SIZE - sizeof(int),(char*)&currSiblingPtr, sizeof(int));
-                ixFileHandle.appendPage(newPage);
-                int newPageNum = ixFileHandle.getNumberOfPages();
-
-                //updating curr Page sibling pointer to new page
-                memcpy((char*)page + PAGE_SIZE - sizeof(int),(char*)&newPageNum, sizeof(int));
-                freeSpace = PAGE_SIZE - offset;
-                setSpaceOnPage(page,freeSpace);
-                setSlotOnPage(page,170);
+                int newPageNum = splitLeaf(ixFileHandle, page,newPage);
 
                 n1 = currPage;
                 n2 = newPageNum;
                 length = 12;
 
+                int offset = (170 * 3 * sizeof(int)) + 10;
                 // Inserting the new entry into either of these pages
                 void* lastRecOnCurrPage = malloc(12);
                 memcpy((char*)lastRecOnCurrPage,(char*)page + offset - (3* sizeof(int)),12);
@@ -533,6 +541,7 @@ void IndexManager::insertIntoPage(IXFileHandle &ixFileHandle, const Attribute &a
                 }
                 else if(compare1 > 0 && compare2 < 0)
                 {
+                    int shiftSize = PAGE_SIZE - getSpaceOnPage(newPage) - 10;
                     //shift all records in new page + 12
                     memmove((char*)newPage + 10 + 12,(char*)newPage + 10 , shiftSize);
                     memcpy((char*)newPage + 10,(char*)newKey,12);

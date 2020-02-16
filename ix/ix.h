@@ -69,6 +69,7 @@ protected:
     int compareVarChar(const void* entry,const void* recordOnPage);
     void newLeafPage(void* page);
     void newInterPage(void* page);
+    int splitLeaf(IXFileHandle &ixFileHandle,void* page,void* newPage);
 
 
 
