@@ -26,6 +26,7 @@ RC IndexManager::closeFile(IXFileHandle &ixFileHandle) {
     return PagedFileManager::instance().closeFile(ixFileHandle.fileHandle);
 }
 /*
+
 RC IndexManager::compareInt(void *entry, void *recordOnPage){
     int entryKey, entrySlotNum, entryPageNum;
     int recordKey, recordSlotNum, recordPageNum;
@@ -41,7 +42,48 @@ RC IndexManager::compareInt(void *entry, void *recordOnPage){
     return -1
 
 }
+
+ RC IndexManager::compareFloat(void *entry, void *recordOnPage){
+ float entryKey, recordKey;
+    int  entrySlotNum, entryPageNum;
+    int  recordSlotNum, recordPageNum;
+    memcpy(&entryKey,(char *)entry, sizeof(int));
+    memcpy(&entryPageNum,(char *)entry + sizeof(int), sizeof(int));
+    memcpy(&entrySlotNum,(char *)entry + 2 * sizeof(int), sizeof(int));
+
+    memcpy(&recordKey,(char *)recordOnPage, sizeof(int));
+    memcpy(&recordPageNum,(char *)recordOnPage + sizeof(int), sizeof(int));
+    memcpy(&recordSlotNum,(char *)recordOnPage + 2 * sizeof(int), sizeof(int));
+    if(recordKey < entryKey or recordPageNum  ?? entryPageNum)
+        return 1;
+    return -1
+
+}
+ RC IndexManager::compareVarChar(void *entry, void *recordOnPage){
+    std::string entryKey, recordKey;
+    int length;
+    int  entrySlotNum, entryPageNum;
+    int  recordSlotNum, recordPageNum;
+
+    memcpy(&length,(char *)entry, sizeof(int));
+    memcpy(&entryKey,(char *)entry+sizeof(int), length);
+    memcpy(&entryPageNum,(char *)entry + sizeof(int) + length, sizeof(int));
+    memcpy(&entrySlotNum,(char *)entry + 2 * sizeof(int) + length, sizeof(int));
+
+
+     memcpy(&length,(char *)recordOnPage, sizeof(int));
+    memcpy(&recordKey,(char *)recordOnPage + sizeof(int), length);
+    memcpy(&recordPageNum,(char *)recordOnPage + sizeof(int) + length, sizeof(int));
+    memcpy(&recordSlotNum,(char *)recordOnPage + 2 * sizeof(int) + length, sizeof(int));
+    if(recordKey < entryKey or recordPageNum  ?? entryPageNum)
+        return 1;
+    return -1
+
+}
 */
+
+
+
 RC IndexManager::insertEntry(IXFileHandle &ixFileHandle, const Attribute &attribute, const void *key, const RID &rid) {
 
 
