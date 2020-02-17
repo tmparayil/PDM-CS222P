@@ -46,7 +46,7 @@ RC IndexManager::insertEntry(IXFileHandle &ixFileHandle, const Attribute &attrib
 
 
 
-    
+
     return -1;
 }
 
@@ -132,9 +132,8 @@ void IndexManager:: printCurrentNode(IXFileHandle &ixFileHandle, const Attribute
 
 
     //getting the type of the current node
-    bool isleaf, isIntermed;
+    bool isleaf;
     isleaf = isLeaf(pageData);
-    isIntermed = isInter(pageData);
 
 
 
@@ -184,9 +183,9 @@ void IndexManager:: printCurrentNode(IXFileHandle &ixFileHandle, const Attribute
                     float key;
 
                     //header + P0 + 3*i*sizeof(int)
-                    memcpy(&key, (char*)pageData + 10  + 2* sizeof(int) + 3*i*sizeof(int), sizeof(int));
-                    memcpy(&currRID.pageNum, (char*)pageData + 10 + 3* sizeof(int) + 3* sizeof(int)*i, sizeof(int));
-                    memcpy(&currRID.slotNum, (char*)pageData + 10 + 4* sizeof(int) + 3* sizeof(int)*i, sizeof(int));
+                    memcpy(&key, (char*)pageData + headerOffset  + 2* sizeof(int) + 3*i*sizeof(int), sizeof(int));
+                    memcpy(&currRID.pageNum, (char*)pageData + headerOffset + 3* sizeof(int) + 3* sizeof(int)*i, sizeof(int));
+                    memcpy(&currRID.slotNum, (char*)pageData + headerOffset + 4* sizeof(int) + 3* sizeof(int)*i, sizeof(int));
 
 
                     if (!newNode)
@@ -204,16 +203,42 @@ void IndexManager:: printCurrentNode(IXFileHandle &ixFileHandle, const Attribute
 
             case TypeVarChar:
 
+                int offset = 0;
+                for (int i = 0; i < numRecords; i++) {
+
+                        int keyLength;
+                        std::string key;
+                        //get the length of the record
+                        memcpy(&keyLength, (char*) pageData + headerOffset + offset, sizeof(int));
+                    memcpy(&currRID.pageNum, (char*)pageData + headerOffset + offset + sizeof(int) + keyLength, sizeof(int));
+                    memcpy(&currRID.slotNum,(char*)pageData + headerOffset + offset + 2*sizeof(int) + keyLength, sizeof(int));
+
+                    for(int j = 0; j < keyLength; j++){
+                            char temp;
+                            memcpy(&temp, (char*)pageData + headerOffset + offset + sizeof(int) + j* sizeof(char),
+                                   sizeof(char) );
+                            key += temp;
+                        }
+
+                    offset += sizeof(int) + keyLength + 2* sizeof(int);
+                    if (!newNode)
+                    {
+                        newNode = true;
+                    }
+
+                    if (newNode && i > 0)
+                        std::cout << "]\", ";
+                    std::cout << "\"" ;
+                    std::cout << key <<  ": [(" << currRID.pageNum << ", "<< currRID.slotNum << ")";
+
+                    }
+
                 break;
 
         }
+        std::cout << "]";
 
-
-
-
-
-
-
+        
     }
     //if non leaf node print the key values
     else{
@@ -232,11 +257,11 @@ void IndexManager:: printCurrentNode(IXFileHandle &ixFileHandle, const Attribute
                     std::cout << "\"" << key << "\"";
                 }
                 // Print m+1 children
-                std::cout << "],\n\"children\": [\n"; // End of keys and start of children
+                std::cout << "],\n\"children\": [\n";
                 for (int i = 0; i <= numRecords; i++) // child_1 to child_m
                 {
                     if (i > 0)
-                        std::cout << ",\n"; // Separator of children of more than 1
+                        std::cout << ",\n";
                     int pageNum;
                     memcpy(&pageNum, (char*)pageData + 10 + 3* sizeof(int) + 3* sizeof(int)*i, sizeof(int));
                     if (pageNum >=0)
@@ -260,13 +285,13 @@ void IndexManager:: printCurrentNode(IXFileHandle &ixFileHandle, const Attribute
                     std::cout << "\"" << key << "\"";
                 }
                 // cout m + 1 children
-                std::cout << "],\n\"children\": [\n"; // End of keys and start of children
+                std::cout << "],\n\"children\": [\n";
                 for (int i = 0; i <= numRecords; i++) // child_1 to child_m
                 {
                     if (i > 0)
-                        std::cout << ",\n"; // Separator of children of more than 1
+                        std::cout << ",\n";
                     int pageNum;
-                    memcpy(&pageNum, (char*)pageData + 10 + 3* sizeof(int) + 3* sizeof(int)*i, sizeof(int));
+                    memcpy(&pageNum, (char*)pageData + headerOffset + 3* sizeof(int) + 3* sizeof(int)*i, sizeof(int));
                     if (pageNum >=0)
                         printCurrentNode(ixFileHandle, attribute, pageNum, newNode);
                     else
@@ -277,13 +302,52 @@ void IndexManager:: printCurrentNode(IXFileHandle &ixFileHandle, const Attribute
                 break;
 
             case TypeVarChar:
+                int offset = 0;
+                std::vector<int> keyLengthVec;
+                for (int i = 0; i < numRecords; i++) {
+                    int keyLength;
+                    std::string key;
+                    //get the length of the record
+                    memcpy(&keyLength, (char*) pageData + headerOffset + offset, sizeof(int));
+                    memcpy(&currRID.pageNum, (char*)pageData + headerOffset + offset + sizeof(int) + keyLength, sizeof(int));
+                    memcpy(&currRID.slotNum,(char*)pageData + headerOffset + offset + 2*sizeof(int) + keyLength, sizeof(int));
+
+
+                    keyLengthVec.push_back(keyLength);
+                    for(int j = 0; j < keyLength; j++){
+                        char temp;
+                        memcpy(&temp, (char*)pageData + headerOffset + offset + sizeof(int) + j* sizeof(char),
+                               sizeof(char) );
+                        key += temp;
+                    }  offset += sizeof(int) + keyLength + 2* sizeof(int);
+
+                    std::cout << "\"" << key << "\"";
+
+
+                } // cout m + 1 children
+                std::cout << "],\n\"children\": [\n";
+                for(int i = 0; i <= numRecords; i++) // child_1 to child_m
+                {
+                    int pageNum;
+                    if (i > 0)
+                        std::cout << ",\n";
+                    //header + length of key + keydata
+                    memcpy(&pageNum, (char*) pageData + headerOffset + sizeof(int)+keyLengthVec[i], sizeof(int));
+                    if (pageNum >=0)
+                        printCurrentNode(ixFileHandle, attribute, pageNum, newNode);
+                    else
+                        std::cout << "{\"keys\": [\"\"]}"; // Empty child
+
+                }
+
+
                 break;
         }
         std::cout << "]";
 
     }
     free(pageData);
-    if (!isIntermed && !isleaf)
+    if (getRoot(ixFileHandle) == pageNum && !isleaf)
        std:: cout << "\n";
     std::cout << "}";
 
@@ -315,6 +379,30 @@ IXFileHandle::~IXFileHandle() {
 }
 
 RC IXFileHandle::collectCounterValues(unsigned &readPageCount, unsigned &writePageCount, unsigned &appendPageCount) {
-    return -1;
+
+    void* buffer = malloc(PAGE_SIZE);
+    file->seekg(0,std::ios_base::beg);
+    file->read((char*)buffer,PAGE_SIZE);
+
+    int readPage , writePage , appendPage;
+
+    memcpy((char*)&readPage,(char*)buffer + sizeof(int) + sizeof(int), sizeof(int));
+    memcpy((char*)&writePage,(char*)buffer + sizeof(int) + 2 * sizeof(int), sizeof(int));
+    memcpy((char*)&appendPage,(char*)buffer + sizeof(int) + 3 * sizeof(int), sizeof(int));
+
+    readPageCount = readPage;
+    writePageCount = writePage;
+    appendPageCount = appendPage;
+
+    memcpy((char*)buffer + sizeof(int) + sizeof(int),(char*)&readPage, sizeof(int));
+    memcpy((char*)buffer + sizeof(int) + 2 * sizeof(int),(char*)&writePage, sizeof(int));
+    memcpy((char*)buffer + sizeof(int) + 3 * sizeof(int),(char*)&appendPage, sizeof(int));
+
+    file->seekp(0,std::ios_base::beg);
+    file->write((char*)buffer,PAGE_SIZE);
+    file->seekp(0,std::ios_base::beg);
+
+    free(buffer);
+    return 0;
 }
 

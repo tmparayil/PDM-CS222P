@@ -98,6 +98,7 @@ public:
 
     // Put the current counter values of associated PF FileHandles into variables
     RC collectCounterValues(unsigned &readPageCount, unsigned &writePageCount, unsigned &appendPageCount);
+    std::fstream* file;
 
 };
 
