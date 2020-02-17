@@ -54,7 +54,7 @@ protected:
     void insertIntoPage(IXFileHandle &ixFileHandle,const Attribute &attribute,int currPage,const void* newKey,void* returnedChild,int& n1,int& n2,int& length);
     void setRootPage(IXFileHandle &ixFileHandle,void* entry,int length);
     void setRootInHidden(IXFileHandle &ixFileHandle,int rootNum);
-    bool validRootPage(const void* page);
+    bool isRoot(const void* page);
     bool isLeaf(const void* page);
     bool isInter(const void* page);
     int getLengthOfEntry(const void* key,const Attribute& attribute);
@@ -75,6 +75,7 @@ protected:
     void addToInterPage(void* page,const Attribute &attribute,const void* newChild,int x,int y,int lenRec);
     int splitInter(IXFileHandle &ixFileHandle,void* page,void* newPage);
     int splitInterVarchar(IXFileHandle &ixFileHandle,void* page,void* newPage);
+    int findPushUpKey(void* page,void* newPage,const void* newKey,void* rootKey,const Attribute &attribute,int x,int y);
 
 
 
@@ -113,10 +114,10 @@ public:
     // Put the current counter values of associated PF FileHandles into variables
     RC collectCounterValues(unsigned &readPageCount, unsigned &writePageCount, unsigned &appendPageCount);
 
-    RC readPage(PageNum pageNum, void *data);                           // Get a specific page
-    RC writePage(PageNum pageNum, const void *data);                    // Write a specific page
+    RC readPage(int pageNum, void *data);                           // Get a specific page
+    RC writePage(int pageNum, const void *data);                    // Write a specific page
     RC appendPage(const void *data);                                    // Append a specific page
-    unsigned getNumberOfPages();                                        // Get the number of pages in the file
+    int getNumberOfPages();                                        // Get the number of pages in the file
 
     std::fstream* file;
     std::fstream* getFile();

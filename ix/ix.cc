@@ -16,10 +16,17 @@ bool fileExists(const std::string &fileName)
     return false;
 }
 
+/*
+ * 0-4 Root page
+ * 4-8 Num of pages
+ * 8-12 Read count
+ * 12-16 Write count
+ * 16-20 Append count
+ */
 void initialise(std::fstream &file)
 {
     void* buffer = malloc(PAGE_SIZE);
-    int root = 0; // At the start, root page is Page 0
+    int root = 0;
     int recordNum = 0;
     int readCount = 0;
     int writeCount = 0;
@@ -88,11 +95,16 @@ RC IndexManager::closeFile(IXFileHandle &ixFileHandle) {
     return -1;
 }
 
+
+
 int IndexManager::getRootPage(IXFileHandle &ixFileHandle) {
     void* buffer = malloc(PAGE_SIZE);
-    int root;
+    int root,pages;
+
     ixFileHandle.readPage(-1,buffer);
+
     memcpy((char*)&root,(char*)buffer, sizeof(int));
+    memcpy((char*)&pages,(char*)buffer+ sizeof(int), sizeof(int));
     free(buffer);
     return root;
 }
@@ -129,13 +141,14 @@ void IndexManager::setRootPage(IXFileHandle &ixFileHandle,void* entry,int length
 
     if(entry != NULL)
     {
+        std::cout<<"entry not null"<<std::endl;
         memcpy((char*)page + 10,(char*)entry,length);
     }
 
     ixFileHandle.appendPage(page);
 
     int currPageNum = ixFileHandle.getNumberOfPages();
-    setRootInHidden(ixFileHandle,currPageNum);
+    setRootInHidden(ixFileHandle,currPageNum - 1);
     free(page);
     return;
 }
@@ -171,7 +184,7 @@ void IndexManager::newInterPage(void* page) {
     return;
 }
 
-bool IndexManager::validRootPage(const void *page) {
+bool IndexManager::isRoot(const void *page) {
 
     char* checkArr = new char[2];
     memcpy((char*)checkArr,(char*)page, 2*sizeof(char));
@@ -190,7 +203,7 @@ bool IndexManager::isLeaf(const void *page) {
     char* checkArr = new char[2];
     memcpy((char*)checkArr,(char*)page, 2*sizeof(char));
 
-    if(checkArr[1] == 'L') {
+    if(checkArr[1] == 'L' && checkArr[0] == '0') {
         delete[] checkArr;
         return true;
     }
@@ -204,7 +217,7 @@ bool IndexManager::isInter(const void *page) {
     char* checkArr = new char[2];
     memcpy((char*)checkArr,(char*)page, 2*sizeof(char));
 
-    if(checkArr[0] == 'I') {
+    if(checkArr[0] == 'I' && checkArr[1] == '0') {
         delete[] checkArr;
         return true;
     }
@@ -259,6 +272,9 @@ bool IndexManager::isSpaceAvailable(const void *page, int length) {
 RC IndexManager::insertEntry(IXFileHandle &ixFileHandle, const Attribute &attribute, const void *key, const RID &rid) {
 
     int totalPages = ixFileHandle.getNumberOfPages();
+
+    std::cout<<"insertEntry()"<<std::endl;
+
     if(totalPages == 0)
     {
         setRootPage(ixFileHandle,NULL,0);
@@ -266,10 +282,14 @@ RC IndexManager::insertEntry(IXFileHandle &ixFileHandle, const Attribute &attrib
 
     void* page = malloc(PAGE_SIZE);
     int root = getRootPage(ixFileHandle);
+
     ixFileHandle.readPage(root,page);
 
-    if(!validRootPage(page))
+    if(!isRoot(page))
+    {
+        std::cout<<"not a valid root page"<<std::endl;
         return -1;
+    }
 
     void* returnedChild = malloc(PAGE_SIZE);
     int n1 = -1 , n2 = -1;
@@ -278,9 +298,9 @@ RC IndexManager::insertEntry(IXFileHandle &ixFileHandle, const Attribute &attrib
     if(attribute.type == TypeInt || attribute.type == TypeReal)
     {
         void* newKey = malloc(12); // sizeof(int) + RID size (2 * sizeof(int))
-        memcpy((char*)newKey,key, sizeof(int));
-        memcpy((char*)newKey + sizeof(int),(char*)rid.pageNum, sizeof(int));
-        memcpy((char*)newKey + (2* sizeof(int)),(char*)rid.slotNum, sizeof(int));
+        memcpy((char*)newKey,(char*)key, sizeof(int));
+        memcpy((char*)newKey + sizeof(int),(char*)&rid.pageNum, sizeof(int));
+        memcpy((char*)newKey + (2* sizeof(int)),(char*)&rid.slotNum, sizeof(int));
 
         insertIntoPage(ixFileHandle, attribute, root, newKey, returnedChild,n1,n2,length);
         free(newKey);
@@ -299,7 +319,7 @@ RC IndexManager::insertEntry(IXFileHandle &ixFileHandle, const Attribute &attrib
     }
 
     // If returnedChild is not Null , insert node into root page.
-    if(returnedChild != nullptr)
+   /* if(length != -1)
     {
         if(getSpaceOnPage(page) > length)
         {
@@ -449,7 +469,7 @@ RC IndexManager::insertEntry(IXFileHandle &ixFileHandle, const Attribute &attrib
             memcpy((char*)page + sizeof(char),(char*)unset, sizeof(char));
             ixFileHandle.writePage(root,page);
         }
-    }
+    }  */
     free(returnedChild);
     free(page);
     return 0;
@@ -476,7 +496,6 @@ void IndexManager::addToPage(void *page, const void *newKey,const Attribute &att
     int numSlots = getSlotOnPage(page);
     // start of record offset
     int offset = 10;
-    offset+= sizeof(int);
 
     if(attribute.type == TypeInt)
     {
@@ -817,22 +836,305 @@ void IndexManager::addToInterPage(void *page, const Attribute &attribute, const 
 
 int IndexManager::splitInter(IXFileHandle &ixFileHandle, void *page, void *newPage) {
 
+    int newPageNum = -1;
+    newInterPage(newPage);
+
+    int offset = 14;int ptr;
+    int numSlots = getSlotOnPage(page);
+    for(int i=1;i<=numSlots;i++)
+    {
+        offset += 16;
+        if(offset >= (PAGE_SIZE /2 ))
+        {
+            ptr = i;
+            break;
+        }
+    }
+
+    int space =getSpaceOnPage(page);
+    int shiftSize = PAGE_SIZE - space - offset;
+    memcpy((char*)newPage + 10,(char*)page + offset,shiftSize);
+    setSpaceOnPage(newPage,PAGE_SIZE - 10 - shiftSize);
+    setSlotOnPage(newPage,numSlots - ptr);
+
+    setSpaceOnPage(page,space + shiftSize);
+    setSlotOnPage(page,ptr);
+
+    ixFileHandle.appendPage(newPage);
+    newPageNum = ixFileHandle.getNumberOfPages() - 1;
+    return newPageNum;
+}
+
+int IndexManager::splitInterVarchar(IXFileHandle &ixFileHandle, void *page, void *newPage) {
+
+    int newPageNum = -1;
+    newInterPage(newPage);
+
+    int offset = 14;int ptr;
+    int numSlots = getSlotOnPage(page);
+    for(int i=1;i<=numSlots;i++)
+    {
+        int length;
+        memcpy((char*)&length,(char*)page + offset, sizeof(int));
+        offset += length + 16;
+        if(offset >= (PAGE_SIZE /2 ))
+        {
+            ptr = i;
+            break;
+        }
+    }
+
+    int space = getSpaceOnPage(page);
+    int shiftSize = PAGE_SIZE - space - offset;
+    memcpy((char*)newPage + 10,(char*)page + offset,shiftSize);
+    setSpaceOnPage(newPage,PAGE_SIZE - 10 - shiftSize);
+    setSlotOnPage(newPage,numSlots - ptr);
+
+    setSpaceOnPage(page,space + shiftSize);
+    setSlotOnPage(page,ptr);
+
+    ixFileHandle.appendPage(newPage);
+    newPageNum = ixFileHandle.getNumberOfPages() - 1;
+    return newPageNum;
+}
+
+//Returns the key to be pushed up.
+//Deletes the key from the page to balance out keys and pointers
+int IndexManager::findPushUpKey(void *page, void *newPage, const void *newKey, void *rootKey,const Attribute &attribute,int x,int y) {
+    int length = -1;
+    if(attribute.type == TypeInt || attribute.type == TypeReal)
+    {
+        void* firstRecOnNewPage = malloc(12);
+        void* lastRecOnCurrPage = malloc(12);
+
+        int offsetOnCurr = PAGE_SIZE - getSpaceOnPage(page) - 4 - 12;
+        memcpy((char*)lastRecOnCurrPage,(char*)page + offsetOnCurr,12);
+
+        memcpy((char*)firstRecOnNewPage,(char*)newPage + 10,12);
+        int compare1 = compareInt(newKey,lastRecOnCurrPage);
+        int compare2 = compareInt(newKey,firstRecOnNewPage);
+
+        if(compare1 < 0)
+        {
+            addToInterPage(page,attribute,newKey,x,y,12);
+            memcpy((char*)rootKey,(char*)firstRecOnNewPage,12);
+            int shiftSize = PAGE_SIZE - getSpaceOnPage(newPage) - 10 - 12;
+            memmove((char*)newPage + 10,(char*)newPage + 10 + 12,shiftSize);
+        }
+        else if(compare2 > 0)
+        {
+            addToInterPage(newPage,attribute,newKey,x,y,12);
+            memcpy((char*)rootKey,(char*)firstRecOnNewPage,12);
+            int shiftSize = PAGE_SIZE - getSpaceOnPage(newPage) - 10 - 12;
+            memmove((char*)newPage + 10,(char*)newPage + 10 + 12,shiftSize);
+        }
+        else if(compare1 > 0 && compare2 < 0)
+        {
+            memcpy((char*)rootKey,(char*)newKey,12);
+            int shiftSize = PAGE_SIZE - getSpaceOnPage(newPage) - 10;
+            memmove((char*)newPage + 14,(char*)newPage + 10,shiftSize);
+            memcpy((char*)newPage + 10,(char*)&y, sizeof(int));
+        }
+        free(firstRecOnNewPage);
+        free(lastRecOnCurrPage);
+        length = 12;
+    }
+    else if (attribute.type == TypeVarChar)
+    {
+        int offset = 10;
+        int numSlots = getSlotOnPage(page);
+        offset+= sizeof(int);
+        for(int i=1;i<numSlots;i++)
+        {
+            int len;
+            memcpy((char*)&len,(char*)page + offset, sizeof(int));
+            offset += len + 16;
+        }
+        int len1;
+        memcpy((char*)&len1,(char*)page + offset, sizeof(int));
+        void* lastRecOnCurrPage = malloc(len1 + 12);
+
+        memcpy((char*)&len1,(char*)newPage + 10, sizeof(int));
+        void* firstRecOnNewPage = malloc(len1 + 12);
 
 
+        int compare1 = compareVarChar(newKey,lastRecOnCurrPage);
+        int compare2 = compareVarChar(newKey,firstRecOnNewPage);
+
+        int newKeyLength;
+        memcpy((char*)&newKeyLength,(char*)newKey, sizeof(int));
+        newKeyLength += 12;
+
+        if(compare1 < 0)
+        {
+            addToInterPage(page,attribute,newKey,x,y,newKeyLength);
+            memcpy((char*)rootKey,(char*)firstRecOnNewPage,len1);
+            int shiftSize = PAGE_SIZE - getSpaceOnPage(newPage) - 10 - len1;
+            memmove((char*)newPage + 10,(char*)newPage + 10 + len1,shiftSize);
+            length = len1;
+        }
+        else if(compare2 > 0)
+        {
+            addToInterPage(newPage,attribute,newKey,x,y,newKeyLength);
+            memcpy((char*)rootKey,(char*)firstRecOnNewPage,len1);
+            int shiftSize = PAGE_SIZE - getSpaceOnPage(newPage) - 10 - len1;
+            memmove((char*)newPage + 10,(char*)newPage + 10 + len1,shiftSize);
+            length = len1;
+        }
+        else if(compare1 > 0 && compare2 < 0)
+        {
+            memcpy((char*)rootKey,(char*)newKey,newKeyLength);
+            int shiftSize = PAGE_SIZE - getSpaceOnPage(newPage) - 10;
+            memmove((char*)newPage + 14,(char*)newPage + 10,shiftSize);
+            memcpy((char*)newPage + 10,(char*)&y, sizeof(int));
+            length = newKeyLength;
+        }
+        free(firstRecOnNewPage);
+        free(lastRecOnCurrPage);
+    }
+    return length;
 }
 
 //Actual insert function
 void IndexManager::insertIntoPage(IXFileHandle &ixFileHandle, const Attribute &attribute,int currPage,
                                   const void *newKey, void *returnedChild, int &n1, int &n2, int &lengthToRet) {
+
     void* page = malloc(PAGE_SIZE);
     ixFileHandle.readPage(currPage,page);
 
-    if(isLeaf(page))
+    if(isRoot(page))
+    {
+        int numSlots = getSlotOnPage(page);
+        if(numSlots == 0)
+        {
+            if(attribute.type == TypeReal || attribute.type == TypeInt)
+            {
+                int ptr = -1;
+                memcpy((char*)page + 10,(char*)&ptr, sizeof(int));
+                memcpy((char*)page + 10 + sizeof(int),(char*)newKey, 12);
+                memcpy((char*)page + 10 + sizeof(int) + 12,(char*)&ptr, sizeof(int));
+                int space = getSpaceOnPage(page);
+                setSpaceOnPage(page,space - 12);
+                setSlotOnPage(page,1);
+                ixFileHandle.writePage(currPage,page);
+            }else if(attribute.type == TypeVarChar)
+            {
+                int ptr = -1;
+                memcpy((char*)page + 10,(char*)&ptr, sizeof(int));
+                int length;
+                memcpy((char*)&length,(char*)newKey, sizeof(int));
+                memcpy((char*)page + 10 + sizeof(int),(char*)newKey, length+ 12);
+                memcpy((char*)page + 10 + sizeof(int) + length + 12,(char*)&ptr, sizeof(int));
+                int space = getSpaceOnPage(page);
+                setSpaceOnPage(page,space - length - 12);
+                setSlotOnPage(page,1);
+                ixFileHandle.writePage(currPage,page);
+            }
+            free(page);
+            return;
+        }
+        else if(numSlots == 1)
+        {
+            void* newLeafPage1 = malloc(PAGE_SIZE);
+            void* newLeafPage2 = malloc(PAGE_SIZE);
+            newLeafPage(newLeafPage1);
+            newLeafPage(newLeafPage2);
+
+            ixFileHandle.appendPage(newLeafPage1);
+            ixFileHandle.appendPage(newLeafPage2);
+
+            int pageNum = ixFileHandle.getNumberOfPages();
+            int pageNum1= pageNum - 2;
+            memcpy((char*)page+10,(char*)&pageNum1, sizeof(int));
+            int pageNum2 = pageNum - 1;
+
+            if(attribute.type == TypeInt || attribute.type == TypeReal)
+            {
+                memcpy((char*)page + 10 + 4 + 12,(char*)&pageNum2, sizeof(int));
+
+                void* currKey = malloc(12);
+                memcpy((char*)currKey,(char*)page + 10 + 4,12);
+                addToPage(newLeafPage2,currKey,attribute);
+
+                int compare = compareInt(newKey,currKey);
+                if(compare < 0)
+                {
+                    addToPage(newLeafPage1,newKey,attribute);
+                    ixFileHandle.writePage(pageNum1,newLeafPage1);
+                } else
+                {
+                    addToPage(newLeafPage2,newKey,attribute);
+                }
+                ixFileHandle.writePage(pageNum2,newLeafPage2);
+            }
+            else if(attribute.type == TypeVarChar)
+            {
+                int length;
+                memcpy((char*)length,(char*)page + 10 + sizeof(int), sizeof(int));
+                memcpy((char*)page + 10 + 4 + length + 12,(char*)&pageNum2, sizeof(int));
+
+                void* currKey = malloc(length + 12);
+                memcpy((char*)page + 10 + 4,(char*)currKey,length + 12);
+                addToPage(newLeafPage2,currKey,attribute);
+
+                int compare = compareVarChar(newKey,currKey);
+                if(compare < 0)
+                {
+                    addToPage(newLeafPage1,newKey,attribute);
+                    ixFileHandle.writePage(pageNum1,newLeafPage1);
+                } else
+                {
+                    addToPage(newLeafPage2,newKey,attribute);
+                }
+                ixFileHandle.writePage(pageNum2,newLeafPage2);
+            }
+            free(newLeafPage1);
+            free(newLeafPage2);
+            free(page);
+            return;
+        } else
+        {
+            int newPageToInsert = findPtrToInsert(attribute,page,newKey);
+            void* newChild = malloc(PAGE_SIZE);
+            int x , y , lenRec;
+            insertIntoPage(ixFileHandle,attribute,newPageToInsert,newKey,newChild,x,y,lenRec);
+
+            if(lenRec != -1) {
+                if (getSpaceOnPage(page) > lenRec) {
+                    addToInterPage(page, attribute, returnedChild, n1, n2, lenRec);
+                } else {
+                    void *newPage = malloc(PAGE_SIZE);
+                    int newPageNum = splitInterVarchar(ixFileHandle, page, newPage);
+
+                    void* rootKey = malloc(PAGE_SIZE);
+                    int rootKeyLength = findPushUpKey(page,newPage,newKey,rootKey,attribute,x,y);
+
+                    void* insertKey = malloc(rootKeyLength + 8);
+                    memcpy((char*)insertKey,(char*)&currPage, sizeof(int));
+                    memcpy((char*)insertKey + sizeof(int),(char*)rootKey,rootKeyLength);
+                    memcpy((char*)insertKey + sizeof(int) + rootKeyLength,(char*)&newPageNum, sizeof(int));
+                    setRootPage(ixFileHandle,insertKey,rootKeyLength);
+
+                    //Unsetting root notation in current page ::  Root -> Inter
+                    char unset = '0';
+                    memcpy((char *) page + sizeof(char), (char *) unset, sizeof(char));
+                    ixFileHandle.writePage(currPage, page);
+                    ixFileHandle.writePage(newPageNum,newPage);
+                    free(rootKey);
+                    free(newPage);
+                }
+            }
+            free(newChild);
+        }
+    }
+    else if(isLeaf(page))
     {
         int length = getLengthOfEntry(newKey,attribute);
         if(isSpaceAvailable(page,length))
         {
             addToPage(page,newKey,attribute);
+            free(page);
+            return;
         } else
         {
             if(attribute.type == TypeInt)
@@ -996,7 +1298,8 @@ void IndexManager::insertIntoPage(IXFileHandle &ixFileHandle, const Attribute &a
                 return;
             }
         }
-    } else if(isInter(page))
+    }
+    else if(isInter(page))
     {
         int newPageToInsert = findPtrToInsert(attribute,page,newKey);
         void* newChild = malloc(PAGE_SIZE);
@@ -1012,6 +1315,7 @@ void IndexManager::insertIntoPage(IXFileHandle &ixFileHandle, const Attribute &a
             if(isSpaceAvailable(page,lenRec))
             {
                 addToInterPage(page,attribute,newChild,x,y,lenRec);
+                free(page);
                 return;
             } else
             {
@@ -1198,7 +1502,7 @@ bool IXFileHandle::check_file_stream() {
     return true;
 }
 
-unsigned int IXFileHandle::getNumberOfPages() {
+int IXFileHandle::getNumberOfPages() {
     int pages;
     file->seekg(sizeof(int),std::ios_base::beg);
     file->read((char*)&pages, sizeof(int));
@@ -1206,9 +1510,13 @@ unsigned int IXFileHandle::getNumberOfPages() {
     return pages;
 }
 
-RC IXFileHandle::readPage(PageNum pageNum, void *data) {
+RC IXFileHandle::readPage(int pageNum, void *data) {
+
     if(!check_file_stream())
+    {
         return -1;
+    }
+
 
     if(pageNum >= IXFileHandle::getNumberOfPages())
     {
@@ -1230,7 +1538,7 @@ RC IXFileHandle::readPage(PageNum pageNum, void *data) {
     return 0;
 }
 
-RC IXFileHandle::writePage(PageNum pageNum, const void *data) {
+RC IXFileHandle::writePage(int pageNum, const void *data) {
     if (!check_file_stream())
         return -1;
 
