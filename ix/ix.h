@@ -71,6 +71,10 @@ protected:
     void newInterPage(void* page);
     int splitLeaf(IXFileHandle &ixFileHandle,void* page,void* newPage);
     int splitLeafVarchar(IXFileHandle &ixFileHandle,void* page,void* newPage);
+    int findPtrToInsert(const Attribute &attribute,const void* page,const void* newKey);
+    void addToInterPage(void* page,const Attribute &attribute,const void* newChild,int x,int y,int lenRec);
+    int splitInter(IXFileHandle &ixFileHandle,void* page,void* newPage);
+    int splitInterVarchar(IXFileHandle &ixFileHandle,void* page,void* newPage);
 
 
 
