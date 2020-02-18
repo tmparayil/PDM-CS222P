@@ -3,8 +3,10 @@
 
 #include <vector>
 #include <string>
+#include <iostream>
 
 #include "../rbf/rbfm.h"
+
 
 # define IX_EOF (-1)  // end of the index scan
 
@@ -47,15 +49,23 @@ public:
     // Print the B+ tree in pre-order (in a JSON record format)
     void printBtree(IXFileHandle &ixFileHandle, const Attribute &attribute) const;
 
-
-
-    //helper functions
-
+protected:
+    void insertIntoPage(IXFileHandle &ixFileHandle,const Attribute &attribute,int currPage,const void* newKey,void* returnedChild,int& n1,int& n2,int& length);
+    void setRootPage(IXFileHandle &ixFileHandle,void* entry,int length,bool flag);
+    void setRootInHidden(IXFileHandle &ixFileHandle,int rootNum);
+    int getLengthOfEntry(const void* key,const Attribute& attribute);
+    void addToPage(void* page,const void* newKey,const Attribute &attribute);
+    void newLeafPage(void* page);
+    void newInterPage(void* page);
+    int splitLeaf(IXFileHandle &ixFileHandle,void* page,void* newPage);
+    int splitLeafVarchar(IXFileHandle &ixFileHandle,void* page,void* newPage);
+    int findPtrToInsert(const Attribute &attribute,const void* page,const void* newKey);
+    void addToInterPage(void* page,const Attribute &attribute,const void* newChild,int x,int y,int lenRec);
+    int splitInter(IXFileHandle &ixFileHandle,void* page,void* newPage);
+    int splitInterVarchar(IXFileHandle &ixFileHandle,void* page,void* newPage);
+    int findPushUpKey(void* page,void* newPage,const void* newKey,void* rootKey,const Attribute &attribute,int x,int y);
     void printCurrentNode(IXFileHandle &ixFileHandle, const Attribute &attribute, int pageNum, int newNode) const;
-    bool isLeaf(const void *page) const;
-    bool isInter(const void *page) const;
-
-    //helper functions end
+    int getRootPage(IXFileHandle &ixFileHandle) const;
 
 protected:
     IndexManager() = default;                                                   // Prevent construction
@@ -74,8 +84,17 @@ public:
     // Destructor
     ~IX_ScanIterator();
 
+    const Attribute* attribute;
+    void* lowKey;
+    void* highKey;
+    bool lowKeyInclusive;
+    bool highKeyInclusive;
+    IXFileHandle* ixFileHandle;
+    int pageNum;
+
     // Get next matching entry
     RC getNextEntry(RID &rid, void *key);
+    int findFirstLeafPage(void* page);
 
     // Terminate index scan
     RC close();
@@ -83,13 +102,6 @@ public:
 
 class IXFileHandle {
 public:
-
-    FileHandle fileHandle;
-    // variables to keep counter for each operation
-    unsigned ixReadPageCounter;
-    unsigned ixWritePageCounter;
-    unsigned ixAppendPageCounter;
-
     // Constructor
     IXFileHandle();
 
@@ -98,14 +110,35 @@ public:
 
     // Put the current counter values of associated PF FileHandles into variables
     RC collectCounterValues(unsigned &readPageCount, unsigned &writePageCount, unsigned &appendPageCount);
-    std::fstream* file;
 
+    RC readPage(int pageNum, void *data);                           // Get a specific page
+    RC writePage(int pageNum, const void *data);                    // Write a specific page
+    RC appendPage(const void *data);                                    // Append a specific page
+    int getNumberOfPages();                                        // Get the number of pages in the file
+
+    std::fstream* file;
+    std::fstream* getFile();
+    void setFile(std::string& fileName);
+    void closeFile();
+
+    bool check_file_stream();
 };
 
+int getRootPage(IXFileHandle &ixFileHandle);
+bool isRoot(const void* page);
+bool isLeaf(const void* page);
+bool isInter(const void* page);
+int getFirstPage(const void* page);
+bool isSpaceAvailable(const void* page,int length);
+int getSpaceOnPage(const void* page);
+void setSpaceOnPage(const void *page,int space);
+int getSlotOnPage(const void* page);
+void setSlotOnPage(const void *page,int slot);
+int compareInt(const void* entry,const void* recordOnPage);
+int compareReal(const void* entry,const void* recordOnPage);
+int compareVarChar(const void* entry,const void* recordOnPage);
+int getNextLeafPage(const void* page);
+int findLeafPage(void* lowKey,IXFileHandle* ixFileHandle,const Attribute* attribute);
+int findLeafPageTraverse(const void* lowKey,IXFileHandle* ixFileHandle,void* page,const Attribute* attribute,int curr);
 
-//helper functions general
-
-RC  getRoot(IXFileHandle &ixFileHandle);
-
-//helper functions general !
 #endif
