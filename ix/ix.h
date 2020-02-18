@@ -51,7 +51,7 @@ public:
 
 protected:
     void insertIntoPage(IXFileHandle &ixFileHandle,const Attribute &attribute,int currPage,const void* newKey,void* returnedChild,int& n1,int& n2,int& length);
-    void setRootPage(IXFileHandle &ixFileHandle,void* entry,int length);
+    void setRootPage(IXFileHandle &ixFileHandle,void* entry,int length,bool flag);
     void setRootInHidden(IXFileHandle &ixFileHandle,int rootNum);
     int getLengthOfEntry(const void* key,const Attribute& attribute);
     void addToPage(void* page,const void* newKey,const Attribute &attribute);
