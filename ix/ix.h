@@ -50,13 +50,13 @@ public:
     void printBtree(IXFileHandle &ixFileHandle, const Attribute &attribute) const;
 
 protected:
-    int getRootPage(IXFileHandle &ixFileHandle);
+    int getRootPage(IXFileHandle &ixFileHandle) const;
     void insertIntoPage(IXFileHandle &ixFileHandle,const Attribute &attribute,int currPage,const void* newKey,void* returnedChild,int& n1,int& n2,int& length);
     void setRootPage(IXFileHandle &ixFileHandle,void* entry,int length);
     void setRootInHidden(IXFileHandle &ixFileHandle,int rootNum);
-    bool isRoot(const void* page);
-    bool isLeaf(const void* page);
-    bool isInter(const void* page);
+    bool isRoot(const void* page) const;
+    bool isLeaf(const void* page) const;
+    bool isInter(const void* page) const;
     int getLengthOfEntry(const void* key,const Attribute& attribute);
     bool isSpaceAvailable(const void* page,int length);
     int getSpaceOnPage(const void* page);
@@ -76,7 +76,7 @@ protected:
     int splitInter(IXFileHandle &ixFileHandle,void* page,void* newPage);
     int splitInterVarchar(IXFileHandle &ixFileHandle,void* page,void* newPage);
     int findPushUpKey(void* page,void* newPage,const void* newKey,void* rootKey,const Attribute &attribute,int x,int y);
-
+    void printCurrentNode(IXFileHandle &ixFileHandle, const Attribute &attribute, int pageNum, int newNode) const;
 
 
 protected:
