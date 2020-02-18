@@ -543,7 +543,7 @@ void IndexManager::addToPage(void *page, const void *newKey,const Attribute &att
 
             if(compare > 0)
             {
-                //changes this to 3*sizeofint
+                //changed this to 3*sizeofint
                 offset += (3* sizeof(int));
                 continue;
             }
@@ -580,7 +580,7 @@ void IndexManager::addToPage(void *page, const void *newKey,const Attribute &att
 
             if(compare > 0)
             {
-                //changes this to 3*sizeofint
+                //changed this to 3*sizeofint
                 offset += (3* sizeof(int));
                 continue;
             }
