@@ -201,7 +201,7 @@ bool IndexManager::isLeaf(const void *page) const{
     char* checkArr = new char[2];
     memcpy((char*)checkArr,(char*)page, 2*sizeof(char));
 
-    if(checkArr[1] == 'L' ) {
+    if(checkArr[1] == 'L'&& checkArr[0] == '0') {
         delete[] checkArr;
         return true;
     }
@@ -253,7 +253,7 @@ void IndexManager::setSpaceOnPage(const void *page,int space) {
     return;
 }
 
-void IndexManager::setSlotOnPage(const void *page,int slot) {
+void IndexManager::setSlotOnPage( const void *page,int slot) {
     memcpy((char*)page + (2* sizeof(char))+ sizeof(int),(char*)&slot, sizeof(int));
     return;
 }
@@ -270,7 +270,7 @@ RC IndexManager::insertEntry(IXFileHandle &ixFileHandle, const Attribute &attrib
 
     int totalPages = ixFileHandle.getNumberOfPages();
 
-    std::cout<<"insertEntry()"<<std::endl;
+    //std::cout<<"insertEntry()"<<totalPages<<std::endl;
 
     if(totalPages == 0)
     {
@@ -1499,6 +1499,34 @@ void IndexManager::insertIntoPage(IXFileHandle &ixFileHandle, const Attribute &a
 }
 
 RC IndexManager::deleteEntry(IXFileHandle &ixFileHandle, const Attribute &attribute, const void *key, const RID &rid) {
+
+int headerOffset = 10;
+    RID nextRid;
+    void *nextkey = malloc(200);
+    int scanRes;
+    IX_ScanIterator ix_ScanIterator;
+    scanRes = scan(ixFileHandle, attribute, key, key, true, true, ix_ScanIterator);
+    while(ix_ScanIterator.getNextEntry( nextRid, nextkey)){
+        if(rid.pageNum == nextRid.pageNum && rid.slotNum == nextRid.slotNum){
+
+            //get the leaf page num -->
+            int leafPageNum;
+            int numRec, freeSpace;
+
+            void *pageData = malloc(PAGE_SIZE);
+            ixFileHandle.readPage(leafPageNum, pageData);
+
+            memcpy(&numRec, (char*) pageData + headerOffset - sizeof(int), sizeof(int));
+            memcpy(&freeSpace, (char*)pageData + headerOffset - 2* sizeof(int), sizeof(int));
+            
+
+
+
+        }
+
+
+    }
+
     return -1;
 }
 
@@ -1513,16 +1541,16 @@ RC IndexManager::scan(IXFileHandle &ixFileHandle,
 }
 void IndexManager::printCurrentNode(IXFileHandle &ixFileHandle, const Attribute &attribute, int pageNum, int newNode) const
 {
+
     //read the page and get the number of records on that page
 
+
+   // std::cout<<"Page NUM"<<pageNum<<std::endl;
     void *pageData = malloc(PAGE_SIZE);
     ixFileHandle.readPage(pageNum, pageData);
-   // std::cout<<"The page number is :" << pageNum<<std::endl;
     int headerOffset = 10, numOfKeysCount = 0;
     numOfKeysCount = getSlotOnPage(pageData);
-
-
-    //std::cout<<"key count  is "<<numOfKeysCount<<std::endl;
+    std::cout<<"key count  is "<<numOfKeysCount<<std::endl;
 
     //getting the type of the current node
     bool isleaf;
@@ -1570,7 +1598,7 @@ void IndexManager::printCurrentNode(IXFileHandle &ixFileHandle, const Attribute 
                     float key;
 
                     //header + P0 + 3*i*sizeof(int)
-                    memcpy(&key, (char*)pageData + headerOffset  + 3*i*sizeof(int), sizeof(int));
+                    memcpy(&key, (char*)pageData + headerOffset + 3*i*sizeof(int), sizeof(int));
                     memcpy(&currRID.pageNum, (char*)pageData + headerOffset +  sizeof(int) + 3* sizeof(int)*i, sizeof(int));
                     memcpy(&currRID.slotNum, (char*)pageData + headerOffset + 2* sizeof(int) + 3* sizeof(int)*i, sizeof(int));
 
@@ -1632,36 +1660,35 @@ void IndexManager::printCurrentNode(IXFileHandle &ixFileHandle, const Attribute 
 
         switch(attribute.type){
             case TypeInt:
-
                 if(numOfKeysCount != 0)
                 {
                     for (int i = 0; i < numOfKeysCount; i++) //to key_m
                     {
                         int key;
 
-                        //header + P0 + 3*i*sizeof(int)
-                        memcpy(&key, (char*)pageData + headerOffset  + sizeof(int) + 3*i*sizeof(int), sizeof(int));
+                        //header + P0 + 4*i*sizeof(int)
+                        memcpy(&key, (char*)pageData + headerOffset  + sizeof(int) + 4*i*sizeof(int), sizeof(int));
                         if (i > 0)
                             std::cout << ", ";
                         std::cout << "\"" << key << "\"";
                     }
                     // Print m+1 children
                     std::cout << "],\n\"children\": [\n";
-                    int pageNum;
-                    memcpy(&pageNum, (char*)pageData + headerOffset, sizeof(int));
-                   //std::cout<<"p 0  is"<<pageNum<<std::endl;
-                    if (pageNum >=0)
-                        printCurrentNode(ixFileHandle, attribute, pageNum, newNode);
+                    int pageID;
+                    memcpy(&pageID, (char*)pageData + headerOffset, sizeof(int));
+
+                    if (pageID >= 0)
+                        printCurrentNode(ixFileHandle, attribute, pageID, newNode);
 
                     for (int i = 0; i < numOfKeysCount; i++){
                         if (i > 0)
                             std::cout << ",\n";
-                        int pageNum;
 
-                        memcpy(&pageNum, (char*)pageData + headerOffset + 2*sizeof(int) + 3* sizeof(int)*i, sizeof(int));
 
-                        if (pageNum >= 0)
-                            printCurrentNode(ixFileHandle, attribute, pageNum, newNode);
+                        memcpy(&pageID, (char*)pageData + headerOffset + sizeof(int) + 3* sizeof(int)*(i+1), sizeof(int));
+                      //  std::cout<<"page number"<<pageNum<<std::endl;
+                        if (pageID >= 0)
+                            printCurrentNode(ixFileHandle, attribute, pageID, newNode);
                         else
                             std::cout << "{\"keys\": [\"\"]}"; // Empty child
                     }
@@ -1753,12 +1780,17 @@ void IndexManager::printBtree(IXFileHandle &ixFileHandle, const Attribute &attri
 {
 
     //check if a B+ tree exists
-    /*
-    void* page;
-    ixFileHandle.readPage(500, page);
-    std::cout<<"the number of rec are "<<getSlotOnPage(page)<<std::endl;
-     */
+/*
+    void* page = malloc(PAGE_SIZE);
 
+    ixFileHandle.readPage(0,page);
+    int temp;
+    //memcpy(&temp, (char*) page +26, sizeof(int));
+    std::cout<<"total pages"<<ixFileHandle.getNumberOfPages()<<std::endl;
+    std::cout<<"total number of slots"<<getSlotOnPage(page)<<std::endl;
+
+    std::cout<<"temp is"<<temp<<std::endl;
+*/
     int rootpageNum = getRootPage(ixFileHandle);
     int newNode = 0;
     if(rootpageNum < 0) {
@@ -1767,7 +1799,7 @@ void IndexManager::printBtree(IXFileHandle &ixFileHandle, const Attribute &attri
     }
    // std::cout<<"PageNum :"<<rootpageNum<<std::endl;
     // Start with root -> pageNum -> 0
-    printCurrentNode(ixFileHandle, attribute, rootpageNum, newNode);
+   printCurrentNode(ixFileHandle, attribute, rootpageNum, newNode);
 }
 
 IX_ScanIterator::IX_ScanIterator() {
