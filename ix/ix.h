@@ -50,23 +50,11 @@ public:
     void printBtree(IXFileHandle &ixFileHandle, const Attribute &attribute) const;
 
 protected:
-    int getRootPage(IXFileHandle &ixFileHandle) const;
     void insertIntoPage(IXFileHandle &ixFileHandle,const Attribute &attribute,int currPage,const void* newKey,void* returnedChild,int& n1,int& n2,int& length);
     void setRootPage(IXFileHandle &ixFileHandle,void* entry,int length);
     void setRootInHidden(IXFileHandle &ixFileHandle,int rootNum);
-    bool isRoot(const void* page) const;
-    bool isLeaf(const void* page) const;
-    bool isInter(const void* page) const;
     int getLengthOfEntry(const void* key,const Attribute& attribute);
-    bool isSpaceAvailable(const void* page,int length);
-    int getSpaceOnPage(const void* page);
-    void setSpaceOnPage(const void *page,int space);
-    int getSlotOnPage(const void* page);
-    void setSlotOnPage(const void *page,int slot);
     void addToPage(void* page,const void* newKey,const Attribute &attribute);
-    int compareInt(const void* entry,const void* recordOnPage);
-    int compareReal(const void* entry,const void* recordOnPage);
-    int compareVarChar(const void* entry,const void* recordOnPage);
     void newLeafPage(void* page);
     void newInterPage(void* page);
     int splitLeaf(IXFileHandle &ixFileHandle,void* page,void* newPage);
@@ -96,8 +84,17 @@ public:
     // Destructor
     ~IX_ScanIterator();
 
+    const Attribute* attribute;
+    void* lowKey;
+    void* highKey;
+    bool lowKeyInclusive;
+    bool highKeyInclusive;
+    IXFileHandle* ixFileHandle;
+    int pageNum;
+
     // Get next matching entry
     RC getNextEntry(RID &rid, void *key);
+    int findFirstLeafPage(void* page);
 
     // Terminate index scan
     RC close();
@@ -125,7 +122,23 @@ public:
     void closeFile();
 
     bool check_file_stream();
-
 };
+
+int getRootPage(IXFileHandle &ixFileHandle);
+bool isRoot(const void* page);
+bool isLeaf(const void* page);
+bool isInter(const void* page);
+int getFirstPage(const void* page);
+bool isSpaceAvailable(const void* page,int length);
+int getSpaceOnPage(const void* page);
+void setSpaceOnPage(const void *page,int space);
+int getSlotOnPage(const void* page);
+void setSlotOnPage(const void *page,int slot);
+int compareInt(const void* entry,const void* recordOnPage);
+int compareReal(const void* entry,const void* recordOnPage);
+int compareVarChar(const void* entry,const void* recordOnPage);
+int getNextLeafPage(const void* page);
+int findLeafPage(void* lowKey,IXFileHandle* ixFileHandle,const Attribute* attribute);
+int findLeafPageTraverse(const void* lowKey,IXFileHandle* ixFileHandle,void* page,const Attribute* attribute,int curr);
 
 #endif
