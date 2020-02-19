@@ -828,7 +828,8 @@ void IndexManager::addToInterPage(void *page, const Attribute &attribute, const 
     if(attribute.type == TypeInt)
     {
         int offset = 10;
-        for(int i=0;i<numSlots;i++)
+
+        for(int i=0;i<=numSlots;i++)
         {
             int temp;
             memcpy((char*)&temp,(char*)page + offset, sizeof(int));
@@ -836,13 +837,10 @@ void IndexManager::addToInterPage(void *page, const Attribute &attribute, const 
             {
                 break;
             }
-            offset += 12;
+            offset += 16;
         }
-        std::cout<<numSlots<< " , "<<offset<<std::endl;
 
         offset += sizeof(int);
-
-        std::cout<<numSlots<< " , "<<offset<<std::endl;
 
         int space = getSpaceOnPage(page);
         int shiftSize = PAGE_SIZE - space - offset;
@@ -1283,6 +1281,7 @@ void IndexManager::insertIntoPage(IXFileHandle &ixFileHandle, const Attribute &a
             if(isSpaceAvailable(page,lenRec))
             {
                 addToInterPage(page,attribute,newChild,x,y,lenRec);
+                ixFileHandle.writePage(currPage,page);
                 free(page);
                 return;
             } else
