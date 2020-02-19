@@ -2198,7 +2198,7 @@ RC IndexManager::getRecordOffsetInt(const void *pageData,const RID &rid,int key 
     memcpy((char*)keydata, &key, sizeof(int));
     memcpy((char*)keydata+ sizeof(int), &rid.pageNum, sizeof(int));
     memcpy((char*)keydata+ 2*sizeof(int), &rid.slotNum, sizeof(int));
-    std::cout<<"page num is "<<rid.pageNum;
+   // std::cout<<"page num is "<<rid.pageNum;
     numOfSlot = getSlotOnPage(pageData);
     for(int i = 0; i < numOfSlot; i++){
 
@@ -2208,7 +2208,6 @@ RC IndexManager::getRecordOffsetInt(const void *pageData,const RID &rid,int key 
         memcpy((char*)recData+2* sizeof(int),(char*)pageData + headeroffset + 2*sizeof(int)+ 3*i* sizeof(int),sizeof(int));
         int temp;
        // memcpy(&temp,(char*)recData+ sizeof(int), sizeof(int));
-      //  std::cout<<"ghvjbk"<<temp;
        if(compareInt(keydata, recData) == 1)
             return startOffset;
 
@@ -2216,7 +2215,6 @@ RC IndexManager::getRecordOffsetInt(const void *pageData,const RID &rid,int key 
 
 
     }
-if(startOffset == 10)
     return -1;
 
 }
@@ -2246,6 +2244,18 @@ RC IndexManager::getRecordOffsetReal(const void *pageData, const RID &rid,float 
 
     return -1;
 
+}
+RC IndexManager::getLastRecOffsetVarchar(void *pageData){
+    int offset = 10;
+    int length = 0;
+    int numrec = getSlotOnPage(pageData);
+    for(int i = 0; i < numrec; i++){
+        memcpy(&length, (char*)pageData+offset, sizeof(int));
+        offset += length+12;
+
+    }
+std::cout<<"the offset is "<<offset;
+return offset;
 }
 RC IndexManager::deleteEntry(IXFileHandle &ixFileHandle, const Attribute &attribute, const void *key, const RID &rid) {
 
@@ -2305,6 +2315,7 @@ RC IndexManager::deleteEntry(IXFileHandle &ixFileHandle, const Attribute &attrib
                 case TypeVarChar:
                     int length=0;
                     std::string keyStr;
+                    lastRecOffset = getLastRecOffsetVarchar(pageData);
                     memcpy(&length, (char*)nextkey, sizeof(int));
                     memcpy(&keyStr, (char*)nextkey, length);
                     startOffset = getRecordOffsetVarchar(pageData, rid, keyStr);

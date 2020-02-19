@@ -69,6 +69,7 @@ protected:
     RC getRecordOffsetVarchar(const void *pageData,const RID &rid,std::string key );
     RC getRecordOffsetInt(const void *pageData, const RID &rid,int key );
     RC getRecordOffsetReal(const void *pageData, const RID &rid,float key );
+    RC getLastRecOffsetVarchar(void *data);
 
 protected:
     IndexManager() = default;                                                   // Prevent construction
