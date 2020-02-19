@@ -516,12 +516,49 @@ int compareInt(const void *entry, const void *recordOnPage) {
 }
 
 int compareReal(const void *entry, const void *recordOnPage) {
+    float entryKey, recordKey;
+    int  entrySlotNum, entryPageNum;
+    int  recordSlotNum, recordPageNum;
+    memcpy(&entryKey,(char *)entry, sizeof(int));
+    memcpy(&entryPageNum,(char *)entry + sizeof(int), sizeof(int));
+    memcpy(&entrySlotNum,(char *)entry + 2 * sizeof(int), sizeof(int));
 
-    return 0;
+    memcpy(&recordKey,(char *)recordOnPage, sizeof(int));
+    memcpy(&recordPageNum,(char *)recordOnPage + sizeof(int), sizeof(int));
+    memcpy(&recordSlotNum,(char *)recordOnPage + 2 * sizeof(int), sizeof(int));
+    if(entryKey < recordKey)
+        return -1;
+    else if(entryKey == recordKey && entryPageNum < recordPageNum)
+        return -1;
+    else if(entryKey == recordKey && entryPageNum == recordPageNum && entrySlotNum < recordSlotNum)
+        return -1;
+    return 1;
 }
 
 int compareVarChar(const void *entry, const void *recordOnPage) {
-    return 0;
+    std::string entryKey, recordKey;
+    int length;
+    int  entrySlotNum, entryPageNum;
+    int  recordSlotNum, recordPageNum;
+
+    memcpy(&length,(char *)entry, sizeof(int));
+    memcpy(&entryKey,(char *)entry+sizeof(int), length);
+    memcpy(&entryPageNum,(char *)entry + sizeof(int) + length, sizeof(int));
+    memcpy(&entrySlotNum,(char *)entry + 2 * sizeof(int) + length, sizeof(int));
+
+
+    memcpy(&length,(char *)recordOnPage, sizeof(int));
+    memcpy(&recordKey,(char *)recordOnPage + sizeof(int), length);
+    memcpy(&recordPageNum,(char *)recordOnPage + sizeof(int) + length, sizeof(int));
+    memcpy(&recordSlotNum,(char *)recordOnPage + 2 * sizeof(int) + length, sizeof(int));
+    if(entryKey < recordKey)
+        return -1;
+    else if(entryKey == recordKey && entryPageNum < recordPageNum)
+        return -1;
+    else if(entryKey == recordKey && entryPageNum == recordPageNum && entrySlotNum < recordSlotNum)
+        return -1;
+    return 1;
+
 }
 
 
@@ -2343,5 +2380,5 @@ RC IndexManager::deleteEntry(IXFileHandle &ixFileHandle, const Attribute &attrib
     free(nextkey);
 if(isDeleted== false)
     return -1;
-    return 0;
+return 0;
 }
