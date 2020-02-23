@@ -1723,13 +1723,11 @@ int IX_ScanIterator::findFirstLeafPage(void *page) {
     ixFileHandle->readPage(num,temp);
     while(!isLeaf(temp))
     {
-        std::cout<<"inside loop : "<<num<<std::endl;
         num = getFirstPage(temp);
         ixFileHandle->readPage(num,temp);
     }
     memcpy((char*)page,(char*)temp,PAGE_SIZE);
     free(temp);
-    std::cout<<"return first leaf page : "<<num<<std::endl;
     return num;
 }
 
@@ -1738,7 +1736,6 @@ int getNextLeafPage(const void* page)
     int offset = PAGE_SIZE - sizeof(int);
     int temp;
     memcpy((char*)&temp,(char*)page + offset, sizeof(int));
-    std::cout<<"next leaf page : "<<temp<<std::endl;
     return temp;
 }
 
@@ -1890,13 +1887,7 @@ RC IX_ScanIterator::getNextEntry(RID &rid, void *key) {
                             memcpy((char *) key, (char *) currKey, sizeof(int));
                             memcpy((char *) &rid.pageNum, (char *) currKey + sizeof(int), sizeof(int));
                             memcpy((char *) &rid.slotNum, (char *) currKey + 8, sizeof(int));
-                            memcpy((char *) lowKey, (char *) currKey, 12);
-                            int tmp;
-                            memcpy((char*)&tmp,(char*)lowKey,4);
-                            std::cout<<"here!!"<<std::endl;
-                            std::cout<<"low Key : "<<tmp<<std::endl;
-                            std::cout<<"page num : "<<pageNum<<std::endl;
-
+                            memcpy((char*)lowKey,(char*)currKey,12);
                             free(page);
                             free(currKey);
                             return 0;
