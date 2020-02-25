@@ -4,6 +4,7 @@
 #include <vector>
 #include <string>
 #include <iostream>
+#include <climits>
 
 #include "../rbf/rbfm.h"
 
@@ -65,8 +66,6 @@ protected:
     int splitInterVarchar(IXFileHandle &ixFileHandle,void* page,void* newPage);
     int findPushUpKey(void* page,void* newPage,const void* newKey,void* rootKey,const Attribute &attribute,int x,int y);
     void printCurrentNode(IXFileHandle &ixFileHandle, const Attribute &attribute, int pageNum, int newNode) const;
-
-    int getRootPage(IXFileHandle &ixFileHandle) const;
     RC getRecordOffsetVarchar(const void *pageData,const RID &rid,std::string key );
     RC getRecordOffsetInt(const void *pageData, const RID &rid,int key );
     RC getRecordOffsetReal(const void *pageData, const RID &rid,float key );
@@ -89,7 +88,6 @@ public:
 
     // Destructor
     ~IX_ScanIterator();
-
 
     const Attribute* attribute;
     void* lowKey;
@@ -142,6 +140,7 @@ void setSpaceOnPage(const void *page,int space);
 int getSlotOnPage(const void* page);
 void setSlotOnPage(const void *page,int slot);
 int compareInt(const void* entry,const void* recordOnPage);
+int isEqualINTReal(const void *entry, const void *recordOnPage);
 int compareReal(const void* entry,const void* recordOnPage);
 int compareVarChar(const void* entry,const void* recordOnPage);
 int getNextLeafPage(const void* page);
