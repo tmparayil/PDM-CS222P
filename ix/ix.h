@@ -4,6 +4,8 @@
 #include <vector>
 #include <string>
 #include <iostream>
+#include <climits>
+#include <cstring>
 
 #include "../rbf/rbfm.h"
 
@@ -59,7 +61,6 @@ protected:
     void newInterPage(void* page);
     int splitLeaf(IXFileHandle &ixFileHandle,void* page,void* newPage);
     int splitLeafVarchar(IXFileHandle &ixFileHandle,void* page,void* newPage);
-    int findPtrToInsert(const Attribute &attribute,const void* page,const void* newKey);
     void addToInterPage(void* page,const Attribute &attribute,const void* newChild,int x,int y,int lenRec);
     int splitInter(IXFileHandle &ixFileHandle,void* page,void* newPage);
     int splitInterVarchar(IXFileHandle &ixFileHandle,void* page,void* newPage);
@@ -69,6 +70,7 @@ protected:
     RC getRecordOffsetInt(const void *pageData, const RID &rid,int key );
     RC getRecordOffsetReal(const void *pageData, const RID &rid,float key );
     RC getLastRecOffsetVarchar(void *data);
+    RC deleteEntryInNode(unsigned rootpageNum,IXFileHandle &ixFileHandle,const Attribute &attribute,const void *key, const RID &rid);
 
 
 protected:
@@ -139,10 +141,13 @@ void setSpaceOnPage(const void *page,int space);
 int getSlotOnPage(const void* page);
 void setSlotOnPage(const void *page,int slot);
 int compareInt(const void* entry,const void* recordOnPage);
+int isEqualINTReal(const void *entry, const void *recordOnPage);
 int compareReal(const void* entry,const void* recordOnPage);
 int compareVarChar(const void* entry,const void* recordOnPage);
 int getNextLeafPage(const void* page);
 int findLeafPage(void* lowKey,IXFileHandle* ixFileHandle,const Attribute* attribute);
 int findLeafPageTraverse(const void* lowKey,IXFileHandle* ixFileHandle,void* page,const Attribute* attribute,int curr);
+int findPtrToInsert(const Attribute &attribute,const void* page,const void* newKey);
+int getPageNumToDelete(IXFileHandle &ixFileHandle,const Attribute &attribute,const void* key,void* page,int currPage);
 
 #endif
