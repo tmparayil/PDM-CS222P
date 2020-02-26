@@ -70,6 +70,7 @@ protected:
     RC getRecordOffsetInt(const void *pageData, const RID &rid,int key );
     RC getRecordOffsetReal(const void *pageData, const RID &rid,float key );
     RC getLastRecOffsetVarchar(void *data);
+    RC deleteEntryInNode(unsigned rootpageNum,IXFileHandle &ixFileHandle,const Attribute &attribute,const void *key, const RID &rid);
 
 
 protected:
