@@ -1619,7 +1619,7 @@ void IndexManager::printCurrentNode(IXFileHandle &ixFileHandle, const Attribute 
                 }
                 break;
         }
-        std::cout << "]";
+        std::cout << "\"]";
     }
         //if non leaf node print the key values
     else if(isinter){
@@ -1723,8 +1723,9 @@ void IndexManager::printCurrentNode(IXFileHandle &ixFileHandle, const Attribute 
         std::cout << "]";
     }
     free(pageData);
-    if (getRootPage(ixFileHandle) == pageNum && !isleaf)
-        std:: cout << "\n";
+    if (getRootPage(ixFileHandle) == pageNum && !isleaf) {
+        std::cout << "\n";
+    }
     std::cout << "}";
 }
 void IndexManager::printBtree(IXFileHandle &ixFileHandle, const Attribute &attribute) const
