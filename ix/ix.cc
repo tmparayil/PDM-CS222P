@@ -1528,11 +1528,13 @@ void IndexManager::printCurrentNode(IXFileHandle &ixFileHandle, const Attribute 
 {
 
     bool DEBUG_VAL = false;
+
     //read the page and get the number of records on that page
     void *pageData = malloc(PAGE_SIZE);
     ixFileHandle.readPage(pageNum, pageData);
     int headerOffset = 10, numOfKeysCount = 0;
     numOfKeysCount = getSlotOnPage(pageData);
+
     //getting the type of the current node
     bool isleaf, isinter;
     isleaf = isLeaf(pageData);
@@ -1543,11 +1545,8 @@ void IndexManager::printCurrentNode(IXFileHandle &ixFileHandle, const Attribute 
         std::cout << "\n";
     }
 
-//    std::cout<<"page num"<<pageNum<<std::endl;
-//    std::cout<<"num of keys"<<numOfKeysCount<<std::endl;
 
     std::cout << "\"keys\": [";
-    //std::cout<<"the number of records are "<<numOfKeysCount<<std::endl;
     RID currRID;
     //if leaf node print the data too
     if(isleaf){
@@ -1615,14 +1614,6 @@ void IndexManager::printCurrentNode(IXFileHandle &ixFileHandle, const Attribute 
                     memcpy((char*)key, (char*)pageData + headerOffset + offset + sizeof(int),keyLength);
                     key[keyLength] = '\0';
 
-                    /* for(int j = 0; j < keyLength; j++){
-                         char temp;
-                         memcpy(&temp, (char*)pageData + headerOffset + offset + sizeof(int)  + j* sizeof(char),
-                                sizeof(char) );
-                         key += temp;
-                     }
- */
-                    //std::cout<<"key  value"<<key<<std::endl;
                     offset += sizeof(int) + keyLength + 2* sizeof(int);
                     if (!newNode)
                     {
@@ -1656,7 +1647,6 @@ void IndexManager::printCurrentNode(IXFileHandle &ixFileHandle, const Attribute 
                         if (i > 0)
                             std::cout << ", ";
                         std::cout << "\"" << key << ": [(" << pagenum << ","<< slotnum << ")]\"";
-                        //  std::cout << key <<  ": [(" << currRID.pageNum << ", "<< currRID.slotNum << ")";
                     }
                     // Print m+1 children
                     std::cout << "],\n\"children\": [\n";
@@ -1691,7 +1681,6 @@ void IndexManager::printCurrentNode(IXFileHandle &ixFileHandle, const Attribute 
                 for (int i = 0; i < numOfKeysCount; i++) {
                     int keyLength;
                     //get the length of the record
-                    // std::cout<<"offset is "<<offset<<std::endl;
                     memcpy(&keyLength, (char*) pageData + headerOffset + offset, sizeof(int));
 
                     //std::cout<<"key length inter"<<keyLength<<std::endl;
@@ -1705,8 +1694,6 @@ void IndexManager::printCurrentNode(IXFileHandle &ixFileHandle, const Attribute 
                     key[keyLength] = '\0';
 
 
-
-                    //std::cout<<"key value inter"<<key<<std::endl;
                     offset += keyLength + 3* sizeof(int) + sizeof(int);
 
                     if (i > 0)
@@ -1784,10 +1771,8 @@ void IndexManager::printBtree(IXFileHandle &ixFileHandle, const Attribute &attri
     int rootpageNum = getRootPage(ixFileHandle);
     int newNode = 0;
     if(rootpageNum < 0) {
-        std::cout<<"B+ tree doesn't exist"<<std::endl;
         return;
     }
-    // std::cout<<"PageNum :"<<rootpageNum<<std::endl;
     // Start with root -> pageNum -> 0
     printCurrentNode(ixFileHandle, attribute, rootpageNum, newNode);
     std::cout<<std::endl;
@@ -1915,7 +1900,6 @@ int IX_ScanIterator::findFirstLeafPage(void *page) {
     ixFileHandle->readPage(num,temp);
     while(!isLeaf(temp))
     {
-        // std::cout<<"inside loop : "<<num<<std::endl;
         num = getFirstPage(temp);
         ixFileHandle->readPage(num,temp);
     }
