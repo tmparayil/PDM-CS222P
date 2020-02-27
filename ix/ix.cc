@@ -1594,10 +1594,10 @@ void IndexManager::printCurrentNode(IXFileHandle &ixFileHandle, const Attribute 
                         newNode = true;
                     }
                     if (newNode && i > 0)
-                        std::cout << "]\", ";
+                        std::cout << "]\",";
                     std::cout << "\"" ;
 
-                    std::cout << key <<  ": [(" << currRID.pageNum << ","<< currRID.slotNum << ")";
+                    std::cout << key <<  ":[(" << currRID.pageNum << ","<< currRID.slotNum << ")]";
                 }
                 break;
             case TypeReal:
@@ -1617,9 +1617,9 @@ void IndexManager::printCurrentNode(IXFileHandle &ixFileHandle, const Attribute 
                         newNode = true;
                     }
                     if (newNode && i > 0)
-                        std::cout << "]\", ";
+                        std::cout << "]\",";
                     std::cout << "\"" ;
-                    std::cout << key <<  ": [(" << currRID.pageNum << ","<< currRID.slotNum << ")";
+                    std::cout << key <<  ":[(" << currRID.pageNum << ","<< currRID.slotNum << ")]";
                 }
                 break;
             case TypeVarChar:
@@ -1647,10 +1647,10 @@ void IndexManager::printCurrentNode(IXFileHandle &ixFileHandle, const Attribute 
                         newNode = true;
                     }
                     if (newNode && i > 0)
-                        std::cout << "]\", ";
+                        std::cout << "]\",";
                     std::cout << "\"" ;
 
-                    std::cout << key <<  ": [(" << currRID.pageNum << ","<< currRID.slotNum << ")";
+                    std::cout << key <<  ":[(" << currRID.pageNum << ","<< currRID.slotNum << ")]";
             		    delete[] key;
 
                 }
@@ -1675,8 +1675,8 @@ void IndexManager::printCurrentNode(IXFileHandle &ixFileHandle, const Attribute 
 
                         memcpy(&slotnum, (char*)pageData + headerOffset  + 3*sizeof(int) + 4*i*sizeof(int), sizeof(int));
                         if (i > 0)
-                            std::cout << ", ";
-                        std::cout << "\"" << key << ": [(" << pagenum << ","<< slotnum << ")]\"";
+                            std::cout << ",";
+                        std::cout << "\"" << key << ":[(" << pagenum << ","<< slotnum << ")]\"";
                     }
                     // Print m+1 children
                     std::cout << "],\n\"children\": [\n";
@@ -1700,7 +1700,7 @@ void IndexManager::printCurrentNode(IXFileHandle &ixFileHandle, const Attribute 
                         if (ptr1 >= 0)
                             printCurrentNode(ixFileHandle, attribute, ptr1, newNode);
                         else
-                            std::cout << "{\"keys\": [\"\"]}"; // Empty child
+                            std::cout << "{\"keys\":[\"\"]}"; // Empty child
                     }
                 }
                 break;
@@ -1725,9 +1725,9 @@ void IndexManager::printCurrentNode(IXFileHandle &ixFileHandle, const Attribute 
                     offset += keyLength + 3* sizeof(int) + sizeof(int);
 
                     if (i > 0)
-                        std::cout << ", ";
+                        std::cout << ",";
 
-                    std::cout << "\"" << key << ": [(" << currRID.pageNum << ","<< currRID.slotNum << ")]\"";
+                    std::cout << "\"" << key << ":[(" << currRID.pageNum << ","<< currRID.slotNum << ")]\"";
             		    delete[] key;
 
                 } // cout m + 1 children
@@ -1756,7 +1756,7 @@ void IndexManager::printCurrentNode(IXFileHandle &ixFileHandle, const Attribute 
                     if (pageNum >=0)
                         printCurrentNode(ixFileHandle, attribute, pageNum, newNode);
                     else
-                        std::cout << "{\"keys\": [\"\"]}"; // Empty child
+                        std::cout << "{\"keys\":[\"\"]}"; // Empty child
                 }
                 break;
         }
