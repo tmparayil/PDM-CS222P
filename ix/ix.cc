@@ -1528,13 +1528,12 @@ void IndexManager::printCurrentNode(IXFileHandle &ixFileHandle, const Attribute 
 {
 
     bool DEBUG_VAL = false;
-
     //read the page and get the number of records on that page
     void *pageData = malloc(PAGE_SIZE);
     ixFileHandle.readPage(pageNum, pageData);
     int headerOffset = 10, numOfKeysCount = 0;
     numOfKeysCount = getSlotOnPage(pageData);
-
+  
     //getting the type of the current node
     bool isleaf, isinter;
     isleaf = isLeaf(pageData);
@@ -1545,8 +1544,8 @@ void IndexManager::printCurrentNode(IXFileHandle &ixFileHandle, const Attribute 
         std::cout << "\n";
     }
 
-
     std::cout << "\"keys\": [";
+
     RID currRID;
     //if leaf node print the data too
     if(isleaf){
@@ -1570,6 +1569,7 @@ void IndexManager::printCurrentNode(IXFileHandle &ixFileHandle, const Attribute 
                     if (newNode && i > 0)
                         std::cout << "]\", ";
                     std::cout << "\"" ;
+
                     std::cout << key <<  ": [(" << currRID.pageNum << ","<< currRID.slotNum << ")";
                 }
                 break;
@@ -1674,7 +1674,6 @@ void IndexManager::printCurrentNode(IXFileHandle &ixFileHandle, const Attribute 
                     }
                 }
                 break;
-
             case TypeVarChar:
                 int offset = 4;
                 std::vector<int> keyLengthVec;
@@ -1693,11 +1692,11 @@ void IndexManager::printCurrentNode(IXFileHandle &ixFileHandle, const Attribute 
                     memcpy((char*)key, (char*)pageData + headerOffset + offset + sizeof(int),keyLength);
                     key[keyLength] = '\0';
 
-
                     offset += keyLength + 3* sizeof(int) + sizeof(int);
 
                     if (i > 0)
                         std::cout << ", ";
+
                     std::cout << "\"" << key << ": [(" << currRID.pageNum << ","<< currRID.slotNum << ")]\"";
                 } // cout m + 1 children
 
@@ -1778,6 +1777,7 @@ void IndexManager::printBtree(IXFileHandle &ixFileHandle, const Attribute &attri
     std::cout<<std::endl;
 
 }
+
 RC IndexManager::scan(IXFileHandle &ixFileHandle,
                       const Attribute &attribute,
                       const void *lowKey,
@@ -2083,13 +2083,6 @@ RC IX_ScanIterator::getNextEntry(RID &rid, void *key) {
     }
     else if(lowKey != NULL)
     {
-//        std::cout<<"\n\n"<<std::endl;
-//        std::cout<<"LOW KEY NOT NULL"<<std::endl;
-//        int tmp;
-//        memcpy((char*)&tmp,(char*)lowKey,4);
-//        std::cout<<"low Key : "<<tmp<<std::endl;
-//        std::cout<<"page num : "<<pageNum<<std::endl;
-
         // Inside a leaf page
         if(pageNum != -2)
         {
@@ -2125,12 +2118,6 @@ RC IX_ScanIterator::getNextEntry(RID &rid, void *key) {
                             memcpy((char *) &rid.pageNum, (char *) currKey + sizeof(int), sizeof(int));
                             memcpy((char *) &rid.slotNum, (char *) currKey + 8, sizeof(int));
                             memcpy((char *) lowKey, (char *) currKey, 12);
-                            /* int tmp;
-                             memcpy((char*)&tmp,(char*)lowKey,4);
-                             std::cout<<"here!!"<<std::endl;
-                             std::cout<<"low Key : "<<tmp<<std::endl;
-                             std::cout<<"page num : "<<pageNum<<std::endl;
- */
                             free(page);
                             free(currKey);
                             return 0;

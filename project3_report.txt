@@ -1,3 +1,4 @@
+
 1. Basic information
 Team #: 7
 Github Repo Link: https://github.com/UCI-Chenli-teaching/cs222p-winter20-team-7.git
@@ -9,9 +10,7 @@ Student 2 Name: Aneri Shah
 2. Meta-data page in an index file
 - Show your meta-data page of an index design if you have any. 
 
-
 The hidden page is numbered -1 and contains the Root page number, Number of pages in the file, Read page count, Write page count and Append page count values respectively (4 bytes each).
-
 
 
 3. Index Entry Format
@@ -75,13 +74,12 @@ The intermediate page doesn't have the pointer to next leaf page at the end of t
 
 - Have you implemented duplicated key handling that can span multiple pages? Choose Yes or No: 
   If yes, please explain briefly how you have implemented this feature.
-
+  
 Yes, Implemented it by storing key+RID combination. The comparisons are made first by key value and if that is equal we check for the RID page number and slot number.	
 
 - Other implementation details:
 
 We insert the entries into the leaf page until no more space is available for the incoming entries. Then, we split the page and store key-rid pairs along with the corresponding pointers to the intermediate nodes. Using key-RID pairs takes care of duplicate key handling and the insertion continues in this fashion. The scan function initializes a scan on the tree based on some low-key, high-key and inclusive flag parameters and the getNextEntry() function is used to get the entries whose key falls in the range. The printBtree function prints the complete tree and for deleteEntry() function, we implement lazy delete.
-
 
 6. Other (optional)
 - Freely use this section to tell us about things that are related to the project 3, but not related to the other sections (optional)
