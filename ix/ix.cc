@@ -1924,7 +1924,6 @@ int IX_ScanIterator::findFirstLeafPage(void *page) {
     }
     memcpy((char*)page,(char*)temp,PAGE_SIZE);
     free(temp);
-    //std::cout<<"return first leaf page : "<<num<<std::endl;
     return num;
 }
 
@@ -1933,7 +1932,6 @@ int getNextLeafPage(const void* page)
     int offset = PAGE_SIZE - sizeof(int);
     int temp;
     memcpy((char*)&temp,(char*)page + offset, sizeof(int));
-    //std::cout<<"next leaf page : "<<temp<<std::endl;
     return temp;
 }
 
@@ -2014,22 +2012,17 @@ int findLeafPage(void* lowKey,IXFileHandle* ixFileHandle,const Attribute* attrib
 
 RC IX_ScanIterator::getNextEntry(RID &rid, void *key) {
 
-    // std::cout<<"Page Num : "<<pageNum<<std::endl;
 
     if(lowKey == NULL && pageNum != -2)
     {
-        //  std::cout<<"Low key ukk"<<std::endl;
+
         void* page = malloc(PAGE_SIZE);
         ixFileHandle->readPage(pageNum,page);
         int numSlots = getSlotOnPage(page);
 
-        //    std::cout<<"num of slots : "<<numSlots<<std::endl;
-
         if(numSlots == 0)
         {
             pageNum = getNextLeafPage(page);
-
-            //       std::cout<<pageNum<<std::endl;
 
             if(pageNum < 0)
             {
@@ -2072,10 +2065,7 @@ RC IX_ScanIterator::getNextEntry(RID &rid, void *key) {
 
         if(numSlots == 0)
         {
-//            std::cout<<"block2"<<std::endl;
-//            std::cout<<pageNum<<std::endl;
             pageNum = getNextLeafPage(page);
-//            std::cout<<pageNum<<std::endl;
 
             if(pageNum < 0)
             {
@@ -2085,7 +2075,6 @@ RC IX_ScanIterator::getNextEntry(RID &rid, void *key) {
             {
                 free(page);
                 getNextEntry(rid,key);
-//                std::cout<<"Page after return : "<<pageNum<<std::endl;
                 return 0;
             }
         }
@@ -2241,7 +2230,7 @@ RC IX_ScanIterator::getNextEntry(RID &rid, void *key) {
                 } else
                 {
                     free(page);
-                    return 0;
+                    return getNextEntry(rid,key);;
                 }
             }
         }
