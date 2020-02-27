@@ -148,6 +148,5 @@ int getNextLeafPage(const void* page);
 int findLeafPage(void* lowKey,IXFileHandle* ixFileHandle,const Attribute* attribute);
 int findLeafPageTraverse(const void* lowKey,IXFileHandle* ixFileHandle,void* page,const Attribute* attribute,int curr);
 int findPtrToInsert(const Attribute &attribute,const void* page,const void* newKey);
-int getPageNumToDelete(IXFileHandle &ixFileHandle,const Attribute &attribute,const void* key,void* page,int currPage);
 
 #endif

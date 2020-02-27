@@ -62,7 +62,6 @@ int testCase_p1(const std::string &indexFileName1, const std::string &indexFileN
             inRidPageNumSum += rid.pageNum;
         }
     }
-
     // insert more entries
     for (unsigned i = 6000; i <= numOfTuples + 6000; i++) {
         key = (float) i + 87.6;
