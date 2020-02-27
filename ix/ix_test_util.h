@@ -1,6 +1,8 @@
 #ifndef _ix_test_util_h_
 #define _ix_test_util_h_
 
+using namespace std;
+
 #ifndef _fail_
 #define _fail_
 const int fail = -1;

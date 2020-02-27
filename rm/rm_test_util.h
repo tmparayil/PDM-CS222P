@@ -20,12 +20,12 @@ RelationManager &rm = RelationManager::instance();
 
 // This code is required for testing to measure the memory usage of your code.
 // If you can't compile the codebase because of this function, you can safely comment this function or remove it.
-void memProfile() {
+/*void memProfile() {
     int who = RUSAGE_SELF;
     struct rusage usage{};
     getrusage(who, &usage);
     std::cerr << usage.ru_maxrss << "KB" << std::endl;
-}
+}*/
 
 // Function to prepare the data in the correct form to be inserted/read/updated
 void prepareTuple(int attributeCount, unsigned char *nullAttributesIndicator, const int nameLength,

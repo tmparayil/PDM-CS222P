@@ -1650,7 +1650,8 @@ void IndexManager::printCurrentNode(IXFileHandle &ixFileHandle, const Attribute 
                     std::cout << "\"" ;
 
                     std::cout << key <<  ": [(" << currRID.pageNum << ","<< currRID.slotNum << ")";
-		    delete[] key;
+            		    delete[] key;
+
                 }
                 break;
         }
@@ -1726,7 +1727,8 @@ void IndexManager::printCurrentNode(IXFileHandle &ixFileHandle, const Attribute 
                         std::cout << ", ";
 
                     std::cout << "\"" << key << ": [(" << currRID.pageNum << ","<< currRID.slotNum << ")]\"";
-		    delete[] key;
+            		    delete[] key;
+
                 } // cout m + 1 children
 
 
