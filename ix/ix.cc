@@ -2160,7 +2160,7 @@ RC IX_ScanIterator::getNextEntry(RID &rid, void *key) {
                     }
                     offset+=12;
                 }
-		        free(currKey);
+		free(currKey);
 
                 if(isRoot(page))
                 {
@@ -2174,7 +2174,6 @@ RC IX_ScanIterator::getNextEntry(RID &rid, void *key) {
                     return IX_EOF;
                 } else
                 {
-		    free(page);
                     return getNextEntry(rid,key);
                 }
             }
