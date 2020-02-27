@@ -1768,11 +1768,12 @@ void IndexManager::printCurrentNode(IXFileHandle &ixFileHandle, const Attribute 
                 }
                 break;
         }
-        std::cout << "]";
+
     }
     free(pageData);
     if (getRootPage(ixFileHandle) == pageNum && !isleaf) {
         std::cout << "\n";
+        std::cout << "]";
     }
     std::cout << "}";
 }
