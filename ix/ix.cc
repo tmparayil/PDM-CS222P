@@ -1597,7 +1597,7 @@ void IndexManager::printCurrentNode(IXFileHandle &ixFileHandle, const Attribute 
                         std::cout << "]\",";
                     std::cout << "\"" ;
 
-                    std::cout << key <<  ":[(" << currRID.pageNum << ","<< currRID.slotNum << ")]";
+                    std::cout << key <<  ":[(" << currRID.pageNum << ","<< currRID.slotNum << ")";
                 }
                 break;
             case TypeReal:
@@ -1619,7 +1619,7 @@ void IndexManager::printCurrentNode(IXFileHandle &ixFileHandle, const Attribute 
                     if (newNode && i > 0)
                         std::cout << "]\",";
                     std::cout << "\"" ;
-                    std::cout << key <<  ":[(" << currRID.pageNum << ","<< currRID.slotNum << ")]";
+                    std::cout << key <<  ":[(" << currRID.pageNum << ","<< currRID.slotNum << ")";
                 }
                 break;
             case TypeVarChar:
@@ -1650,7 +1650,7 @@ void IndexManager::printCurrentNode(IXFileHandle &ixFileHandle, const Attribute 
                         std::cout << "]\",";
                     std::cout << "\"" ;
 
-                    std::cout << key <<  ":[(" << currRID.pageNum << ","<< currRID.slotNum << ")]";
+                    std::cout << key <<  ":[(" << currRID.pageNum << ","<< currRID.slotNum << ")";
             		    delete[] key;
 
                 }
