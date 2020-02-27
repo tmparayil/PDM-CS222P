@@ -16,6 +16,7 @@ The hidden page is numbered -1 and contains the Root page number, Number of page
 3. Index Entry Format
 - Show your index entry design (structure). 
 
+We insert the keys as Key-Rid pairs to accommodate duplicate key handling as suggested by Prof. Chen Li.
 The index entry design for the Leaf and Intermediate nodes are as follows:
 
 For leaf nodes, we have a header of 10 Bytes at the start of each page. The metadata stored in the header is mentioned below in the page format. After the header, we store the actual records that are to be inserted. The structure of the entry is [Key] [rid.pageNum] [rid.slotNum] for TypeInt and TypeReal. For TypeVarChar, it is [length of the key] [Key] [rid.pageNum] [rid.slotNum]. The components are 4 bytes each. We maintain a 4Byte pointer to the next leaf page at the end of the leaf page.
