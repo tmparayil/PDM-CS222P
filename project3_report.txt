@@ -1,18 +1,28 @@
 1. Basic information
-Team #:
-Github Repo Link:
-Student 1 UCI NetID:
-Student 1 Name:
-Student 2 UCI NetID (if applicable):
-Student 2 Name (if applicable):
-
+Team #: 7
+Github Repo Link: https://github.com/UCI-Chenli-teaching/cs222p-winter20-team-7.git
+Student 1 UCI NetID: tparayil
+Student 1 Name: Thomas Parayil
+Student 2 UCI NetID: shahap1
+Student 2 Name: Aneri Shah
 
 2. Meta-data page in an index file
 - Show your meta-data page of an index design if you have any. 
 
 
+The hidden page is numbered -1 and contains the Root page number, Number of pages in the file, Read page count, Write page count and Append page count values respectively (4 bytes each).
+
+
+
 3. Index Entry Format
 - Show your index entry design (structure). 
+
+The index entry design for the Leaf and Intermediate nodes are as follows:
+
+For leaf nodes, we have a header of 10 Bytes at the start of each page. The metadata stored in the header is mentioned below in the page format. After the header, we store the actual records that are to be inserted. The structure of the entry is [Key] [rid.pageNum] [rid.slotNum] for TypeInt and TypeReal. For TypeVarChar, it is [length of the key] [Key] [rid.pageNum] [rid.slotNum]. The components are 4 bytes each. We maintain a 4Byte pointer to the next leaf page at the end of the leaf page.
+
+For Intermediate nodes, we have a header of 10 Bytes at the start of each page. The metadata stored in the header is mentioned below in the page format. After the header, we store the keys along with its pointers. The structure of the entry is [P0][Key1] [rid1.pageNum] [rid1.slotNum] [P1] [Key2] [rid2.pageNum] [rid2.slotNum] [P2] and so on. For TypeInt and TypeReal, the keys are of size int i.e 4Bytes and we directly store it. For TypeVarChar, it is [length of the key] [Key] [rid.pageNum] [rid.slotNum].
+The root node is considered to be leaf at the start and then its status changes to intermediate node as and when we insert entries.
 
 
 4. Page Format
@@ -20,16 +30,57 @@ Student 2 Name (if applicable):
 
 - Show your leaf-page (leaf node) design.
 
+The leaf and intermediate page design is as follows:
+
+ --------------------------------------------------------------------------------------------
+ |   |    |            |               |                                       		    |	    
+ | I |  L | Free Space |Number of      |Records/Key-Pointers stored ---->		    |					    
+ |   |	  |   Info     | Records/Keys  |					            |	 	    
+ |------------------------------------------------------------------------------------------|
+ | 											    |
+ |               									    |
+ |											    |
+ |											    |
+ |											    |	
+ |											    |
+ |			Free Space							    |
+ |											    |
+ |											    |
+ |											    |
+ |											    |	
+ |											    |
+ |											    |
+ |											    |	
+ | 											    |
+ |											    |	
+ |											    |
+ |											    |	
+ |			   		                                --------------------|	
+ |			   						|      Pointer to   |
+ | 	                     						|   next Leaf page. |
+ --------------------------------------------------------------------------------------------
+
+
+The intermediate page doesn't have the pointer to next leaf page at the end of the page. The rest of the design is the same for the leaf and intermediate pages as shown above. The I and L fields are a byte each and indicate if it is a leaf(leaf -> 'L' non-leaf -> '0') or intermediate node(Intermediate -> 'I' else '0'). Then we have the free space available on that page and the number of records or keys on that page. Both of these fields are 4 bytes each making our page header size to be 10 bytes.
+
+
+
 
 5. Implementation Detail
 - Have you added your own source file (.cc or .h)?
+	No extra files added
 
 - Have you implemented non-lazy deletion? Choose Yes or No: 
+	No
 
 - Have you implemented duplicated key handling that can span multiple pages? Choose Yes or No: 
   If yes, please explain briefly how you have implemented this feature.
 
+Yes, Implemented it by storing key+RID combination. The comparisons are made first by key value and if that is equal we check for the RID page number and slot number.	
+
 - Other implementation details:
+
+We insert the entries into the leaf page until no more space is available for the incoming entries. Then, we split the page and store key-rid pairs along with the corresponding pointers to the intermediate nodes. Using key-RID pairs takes care of duplicate key handling and the insertion continues in this fashion. The scan function initializes a scan on the tree based on some low-key, high-key and inclusive flag parameters and the getNextEntry() function is used to get the entries whose key falls in the range. The printBtree function prints the complete tree and for deleteEntry() function, we implement lazy delete.
 
 
 6. Other (optional)
