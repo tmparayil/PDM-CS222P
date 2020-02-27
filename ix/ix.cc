@@ -80,7 +80,7 @@ RC IndexManager::openFile(const std::string &fileName, IXFileHandle &ixFileHandl
     if(fileExists(fileName)) {
         ixFileHandle.setFile(const_cast<std::string &>(fileName));
         return 0;
-    }
+    } 
 
     return -1;
 }
@@ -1844,6 +1844,10 @@ RC IndexManager::scan(IXFileHandle &ixFileHandle,
                 memcpy((char*)ix_ScanIterator.lowKey + 2*sizeof(int),(char*)&temp, sizeof(int));
             }
         }
+	else
+	{
+		ix_ScanIterator.lowKey = nullptr;
+	}
         if(highKey != NULL)
         {
             ix_ScanIterator.highKey = malloc(12);
@@ -1855,6 +1859,10 @@ RC IndexManager::scan(IXFileHandle &ixFileHandle,
                 memcpy((char*)ix_ScanIterator.highKey + 2*sizeof(int),(char*)&temp, sizeof(int));
             }
         }
+	else
+	{
+		ix_ScanIterator.highKey = nullptr;
+	}
     }
     else if(attribute.type == TypeVarChar)
     {
@@ -1873,6 +1881,10 @@ RC IndexManager::scan(IXFileHandle &ixFileHandle,
                 memcpy((char*)ix_ScanIterator.lowKey + length + 2*sizeof(int),(char*)&temp, sizeof(int));
             }
         }
+	else
+	{
+		ix_ScanIterator.lowKey = nullptr;
+	}
         if(highKey != NULL)
         {
             int length;
@@ -1886,6 +1898,10 @@ RC IndexManager::scan(IXFileHandle &ixFileHandle,
                 memcpy((char*)ix_ScanIterator.highKey + length + 2*sizeof(int),(char*)&temp, sizeof(int));
             }
         }
+	else
+	{
+		ix_ScanIterator.highKey = nullptr;
+	}
     }
     return 0;
 }
@@ -2010,12 +2026,10 @@ int findLeafPage(void* lowKey,IXFileHandle* ixFileHandle,const Attribute* attrib
     return temp;
 }
 
-RC IX_ScanIterator::getNextEntry(RID &rid, void *key) {
+RC IX_ScanIterator::getNextEntry(RID &rid, void *key) {	
 
-
-    if(lowKey == NULL && pageNum != -2)
+    if(lowKey == nullptr && pageNum != -2)
     {
-
         void* page = malloc(PAGE_SIZE);
         ixFileHandle->readPage(pageNum,page);
         int numSlots = getSlotOnPage(page);
@@ -2057,12 +2071,13 @@ RC IX_ScanIterator::getNextEntry(RID &rid, void *key) {
         free(page);
         return 0;
     }
-    else if(lowKey == NULL && pageNum == -2)
+    else if(lowKey == nullptr && pageNum == -2)
     {
+	
         void* page = malloc(PAGE_SIZE);
         pageNum = findFirstLeafPage(page);
         int numSlots = getSlotOnPage(page);
-
+	
         if(numSlots == 0)
         {
             pageNum = getNextLeafPage(page);
@@ -2097,6 +2112,7 @@ RC IX_ScanIterator::getNextEntry(RID &rid, void *key) {
             lowKey = malloc(PAGE_SIZE);
             memcpy((char*)lowKey,(char*)page + 10,length + 12);
         }
+	
         free(page);
         return 0;
     }
@@ -2126,7 +2142,7 @@ RC IX_ScanIterator::getNextEntry(RID &rid, void *key) {
 
                     if(compare < 0)
                     {
-                        if(highKey != NULL)
+                        if(highKey != nullptr)
                         {
                             compare = compareInt(currKey,highKey);
                             if(compare < 0) {
@@ -2190,7 +2206,7 @@ RC IX_ScanIterator::getNextEntry(RID &rid, void *key) {
 
                     if(compare < 0)
                     {
-                        if(highKey != NULL)
+                        if(highKey != nullptr)
                         {
                             compare = compareVarChar(currKey,highKey);
                             if(compare < 0) {
@@ -2250,6 +2266,7 @@ RC IX_ScanIterator::close() {
 }
 
 IXFileHandle::IXFileHandle() {
+  file = nullptr;
 }
 
 IXFileHandle::~IXFileHandle() {
@@ -2263,6 +2280,7 @@ void IXFileHandle::closeFile()
 {
     file->close();
     delete(file);
+    file = nullptr;
 }
 
 std::fstream* IXFileHandle::getFile() {
