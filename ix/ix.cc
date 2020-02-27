@@ -359,6 +359,7 @@ RC IndexManager::insertEntry(IXFileHandle &ixFileHandle, const Attribute &attrib
             memcpy((char*)newKey + sizeof(int),(char*)returnedChild,length);
             memcpy((char*)newKey + 16,(char*)&n2, sizeof(int));
             setRootPage(ixFileHandle,newKey,20,false);
+	    free(newKey);
         }
         else if(attribute.type == TypeVarChar)
         {
@@ -367,6 +368,7 @@ RC IndexManager::insertEntry(IXFileHandle &ixFileHandle, const Attribute &attrib
             memcpy((char*)newKey + sizeof(int),(char*)returnedChild,length);
             memcpy((char*)newKey + length + 4,(char*)&n2, sizeof(int));
             setRootPage(ixFileHandle,newKey,length+8,false);
+	    free(newKey);
         }
     }
     free(returnedChild);
@@ -432,9 +434,13 @@ int compareVarChar(const void *entry, const void *recordOnPage) {
     int compare =  strcmp(tempString,compareString);
     if(compare != 0)
     {
+	delete[] tempString;
+	delete[] compareString;
         return compare;
     } else
     {
+	delete[] tempString;
+	delete[] compareString;
         int entryPage , entrySlot;
         int recordPage,recordSlot;
         memcpy((char*)&entryPage,(char*)entry + recordLength + sizeof(int), sizeof(int));
@@ -1115,7 +1121,7 @@ void IndexManager::insertIntoPage(IXFileHandle &ixFileHandle, const Attribute &a
                         std::cout<<" key : "<<key<<std::endl;
                         offsetTest+=12;
                     }
-
+		    free(test);
                     std::cout<<std::endl;
 
                 }
@@ -1293,6 +1299,7 @@ void IndexManager::insertIntoPage(IXFileHandle &ixFileHandle, const Attribute &a
         if(lenRec == 0)
         {
             free(newChild);
+	    free(page);
             return;
         } else
         {
@@ -1301,6 +1308,7 @@ void IndexManager::insertIntoPage(IXFileHandle &ixFileHandle, const Attribute &a
             {
                 addToInterPage(page,attribute,newChild,x,y,lenRec);
                 ixFileHandle.writePage(currPage,page);
+		free(newChild);
                 free(page);
                 return;
             } else
@@ -1361,10 +1369,16 @@ RC IndexManager::getRecordOffsetVarchar(const void *pageData, const RID &rid,std
             memcpy((char *) recData + sizeof(int)+length, (char *) pageData + headeroffset + recoff+length,sizeof(int));
             memcpy((char *) recData + 2*sizeof(int)+length, (char *) pageData + headeroffset + recoff+length+ sizeof(int),sizeof(int));
             if (compareInt(keydata, recData) == 0)
-                return startOffset;
+		{
+		    free(keydata);
+		    free(recData);	
+                    return startOffset;
+		}
         }
         startOffset += 12+reclen;
     }
+    free(keydata);
+    free(recData);
     return -1;
 }
 int isEqualINTReal(const void *entry, const void *recordOnPage) {
@@ -1402,6 +1416,8 @@ RC IndexManager::getRecordOffsetInt(const void *pageData,const RID &rid,int key 
         }
         startOffset+=12;
     }
+    free(keydata);
+    free(recData);
     return -1;
 }
 RC IndexManager::getRecordOffsetReal(const void *pageData, const RID &rid,float key ){
@@ -1424,6 +1440,8 @@ RC IndexManager::getRecordOffsetReal(const void *pageData, const RID &rid,float 
         }
         startOffset+=12;
     }
+    free(keydata);
+    free(recData);
     return -1;
 }
 RC IndexManager::getLastRecOffsetVarchar(void *pageData){
@@ -1467,7 +1485,10 @@ RC IndexManager :: deleteEntryInNode(unsigned pagenum,IXFileHandle &ixFileHandle
                 memcpy(&keyI, (char*)key, sizeof(int));
                 startOffset = getRecordOffsetInt(pageData, rid, keyI);
                 if(startOffset == -1)
+		{
+		    free(pageData);
                     return -1;
+		}
                 isDeleted = true;
                 deleteSize = 3* sizeof(int);
                 break;
@@ -1479,7 +1500,10 @@ RC IndexManager :: deleteEntryInNode(unsigned pagenum,IXFileHandle &ixFileHandle
                 memcpy(&keyStr, (char*)key, length);
                 startOffset = getRecordOffsetVarchar(pageData, rid, keyStr);
                 if(startOffset == -1)
+		{
+		    free(pageData);
                     return -1;
+		}
                 isDeleted = true;
                 memcpy(&deleteSize, (char*)pageData + startOffset, sizeof(int));
                 deleteSize += 12;
@@ -1503,7 +1527,8 @@ RC IndexManager :: deleteEntryInNode(unsigned pagenum,IXFileHandle &ixFileHandle
             memcpy((char*)newKey + sizeof(int), &rid.pageNum, sizeof(int));
             memcpy((char*)newKey + 2* sizeof(int), &rid.slotNum, sizeof(int));
             int nextpagenum = findPtrToInsert(attribute, pageData, newKey);
-
+	    free(newKey);
+	    free(pageData);
             deleteEntryInNode(nextpagenum, ixFileHandle, attribute, key, rid);
         }
         else{
@@ -1515,9 +1540,10 @@ RC IndexManager :: deleteEntryInNode(unsigned pagenum,IXFileHandle &ixFileHandle
             memcpy((char*)newKey+ sizeof(int) + newKeyLen, &rid.pageNum, sizeof(int));
             memcpy((char*)newKey + 2* sizeof(int) + newKeyLen, &rid.slotNum, sizeof(int));
             int nextpagenum = findPtrToInsert(attribute, pageData, newKey);
-
+	    
+	    free(newKey);
+	    free(pageData);
             deleteEntryInNode(nextpagenum, ixFileHandle, attribute, key, rid);
-
         }
     }
 
@@ -1622,7 +1648,10 @@ void IndexManager::printCurrentNode(IXFileHandle &ixFileHandle, const Attribute 
                     if (newNode && i > 0)
                         std::cout << "]\", ";
                     std::cout << "\"" ;
+
                     std::cout << key <<  ": [(" << currRID.pageNum << ","<< currRID.slotNum << ")";
+            		    delete[] key;
+
                 }
                 break;
         }
@@ -1698,6 +1727,8 @@ void IndexManager::printCurrentNode(IXFileHandle &ixFileHandle, const Attribute 
                         std::cout << ", ";
 
                     std::cout << "\"" << key << ": [(" << currRID.pageNum << ","<< currRID.slotNum << ")]\"";
+            		    delete[] key;
+
                 } // cout m + 1 children
 
 
@@ -2127,6 +2158,7 @@ RC IX_ScanIterator::getNextEntry(RID &rid, void *key) {
                     offset+=12;
                 }
 
+		free(currKey);
 
                 if(isRoot(page))
                 {
@@ -2141,6 +2173,7 @@ RC IX_ScanIterator::getNextEntry(RID &rid, void *key) {
                     return IX_EOF;
                 } else
                 {
+		    free(page);
                     return getNextEntry(rid,key);
                 }
             }
@@ -2183,8 +2216,9 @@ RC IX_ScanIterator::getNextEntry(RID &rid, void *key) {
 
                     }
                     offset+=(length +12);
+		    free(currKey);
                 }
-
+		
                 if(isRoot(page))
                 {
                     free(page);
