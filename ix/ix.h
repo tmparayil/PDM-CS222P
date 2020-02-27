@@ -97,6 +97,7 @@ public:
     bool highKeyInclusive;
     IXFileHandle* ixFileHandle;
     int pageNum;
+    void* page;
 
     // Get next matching entry
     RC getNextEntry(RID &rid, void *key);
@@ -124,6 +125,7 @@ public:
 
     std::fstream* file;
     std::fstream* getFile();
+    bool deleteFlag;
     void setFile(std::string& fileName);
     void closeFile();
 

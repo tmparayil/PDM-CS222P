@@ -77,6 +77,10 @@ RC PagedFileManager::destroyFile(const std::string &fileName) {
 
 RC PagedFileManager::openFile(const std::string &fileName, FileHandle &fileHandle) {
 
+    if(fileHandle.file) {
+
+        return -1;
+    }
     if(file_exists(fileName)) {
         fileHandle.setFile(const_cast<std::string &>(fileName));
         return 0;
