@@ -102,7 +102,7 @@ RC PagedFileManager::closeFile(FileHandle &fileHandle) {
 }
 
 FileHandle::FileHandle() {
-    file;
+    file = nullptr;
 }
 
 FileHandle::~FileHandle() = default;
@@ -115,6 +115,7 @@ void FileHandle::closeFile()
 {
     file->close();
     delete(file);
+    file = nullptr;
 }
 
 std::fstream* FileHandle::getFile() {
