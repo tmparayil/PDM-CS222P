@@ -8,6 +8,8 @@
 
 #include "../rbf/rbfm.h"
 
+#include "../ix/ix.h"
+
 # define RM_EOF (-1)  // end of a scan operator
 
 // RM_ScanIterator is an iterator to go through tuples
@@ -28,18 +30,28 @@ public:
 // RM_IndexScanIterator is an iterator to go through index entries
 class RM_IndexScanIterator {
 public:
-    RM_IndexScanIterator() {};    // Constructor
+
+
+    IX_ScanIterator ixScanIterator;
+    RM_IndexScanIterator() {
+    };    // Constructor
     ~RM_IndexScanIterator() {};    // Destructor
 
     // "key" follows the same format as in IndexManager::insertEntry()
-    RC getNextEntry(RID &rid, void *key) { return RM_EOF; };    // Get next matching entry
-    RC close() { return -1; };                        // Terminate index scan
+    RC getNextEntry(RID &rid, void *key);    // Get next matching entry
+    RC close();
+    // Terminate index scan
+
+
+
 };
 
 // Relation Manager
 class RelationManager {
 public:
     static RelationManager &instance();
+
+
 
     RC createCatalog();
 
@@ -107,6 +119,9 @@ protected:
     int findNextId(FileHandle& fileHandle,const std::vector<Attribute>& recordDescriptor);
     RC prepareTableRecord(const int tableId,const std::string& tableName,const std::string& fileName,const int version, void* record);
     bool FileExists(const std::string &fileName);
+    void initIndexRecord(std::vector<Attribute> &recordDescriptor);
+    RC getTableId(std::string tablename);
+    void prepareIndexRecord(int recordsize, char *bitinfo, int tableId, const std::string &colName,const std::string &fileName, void *record);
 
 private:
     static RelationManager *_relation_manager;
