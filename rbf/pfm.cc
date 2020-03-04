@@ -25,7 +25,7 @@ bool file_exists(const std::string &fileName)
     return false;
 }
 
-void initialise(std::fstream &file)
+void initialisepfm(std::fstream &file)
 {
     void* buffer = malloc(PAGE_SIZE);
     int temp = HEADER_VAL;
@@ -59,7 +59,7 @@ RC PagedFileManager::createFile(const std::string &fileName) {
         return -1;
     }
 
-    initialise(newFile);
+    initialisepfm(newFile);
     newFile.close();
     return 0;
 }
