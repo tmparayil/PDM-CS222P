@@ -604,10 +604,8 @@ RC RelationManager::updateTuple(const std::string &tableName, const void *data, 
     std::vector<Attribute> recordDescriptor;
     getAttributes(tableName,recordDescriptor);
 
-
-    deleteIndices(fileHandle,recordDescriptor, tableName, rid);
     int res = recordBasedFileManager.updateRecord(fileHandle,recordDescriptor, data, rid);
-    insertIntoIndices(tableName,recordDescriptor,data, rid);
+
     recordBasedFileManager.closeFile(fileHandle);
 
     return res;
@@ -696,6 +694,7 @@ RC RelationManager::createIndex(const std::string &tableName, const std::string 
     IndexManager &indexManager = IndexManager::instance();
     std::string fileName = tableName + "_" + attributeName + "_index";
     indexManager.createFile(fileName);
+    int tableId = getTableId(tableName);
     //std::cout<<"file name"<<fileName<<std::endl;
 
     std::vector<Attribute> recordDescriptor;
@@ -706,7 +705,7 @@ RC RelationManager::createIndex(const std::string &tableName, const std::string 
     memset(bitInfo,0,nullinfosize);
 
     //get tuple to insert in the Indices file
-    int tableId = getTableId(tableName);
+
 
 /*
     std::cout<<"table id " <<tableId<<std::endl;
@@ -737,17 +736,17 @@ RC RelationManager::createIndex(const std::string &tableName, const std::string 
     std::vector<Attribute> attributes;
     getAttributes(tableName, attributes);
     Attribute attr;
+    std::vector<std::string>attrs;
+    attrs.push_back(attributeName);
     for(int i = 0; i < attributes.size(); i++ ){
         //std::cout<<" "<<attributes[i].name<<std::endl;
-
         if(attributes[i].name == attributeName){
             attr = attributes[i];
             break;
         }
     }
 
-    std::vector<std::string>attrs;
-    attrs.push_back(attributeName);
+
     this -> scan(tableName, "", NO_OP, NULL, attrs,rmScanIterator);
     void* returnedData = malloc(300);
     char* nullinfo = new char[1];
@@ -858,8 +857,10 @@ void RelationManager:: initIndexRecord(std::vector<Attribute> &recordDescriptor)
 RC RelationManager::destroyIndex(const std::string &tableName, const std::string &attributeName) {
 
     IndexManager &indexManager = IndexManager::instance();
-    int tableId = getTableId(tableName);
     std::string indexFileName = tableName + "_" + attributeName + "_index";
+    std::vector<Attribute> recordDescriptor;
+    initIndexRecord(recordDescriptor);
+
 
     if(!FileExists(indexFileName))
         return -1;
@@ -867,9 +868,6 @@ RC RelationManager::destroyIndex(const std::string &tableName, const std::string
     FileHandle fileHandle;
     RecordBasedFileManager &rbfm = RecordBasedFileManager::instance();
     rbfm.openFile("Indices", fileHandle);
-
-    std::vector<Attribute> recordDescriptor;
-    initIndexRecord(recordDescriptor);
 
 
     int length = indexFileName.length();
@@ -1005,12 +1003,13 @@ RC RelationManager::insertIntoIndices(std::string tableName,std:: vector<Attribu
         Attribute temp = recordDescriptor[i];
         bool nullbit = nullinfo[i / 8] & (1 << (7 - i % 8));
         if (nullbit) {
-
             if(find(attrs.begin(), attrs.end(), temp.name) != attrs.end())
                 break;
+
             continue;
 
-        }if(find(attrs.begin(), attrs.end(), temp.name) != attrs.end()){
+        }
+        if(find(attrs.begin(), attrs.end(), temp.name) != attrs.end()){
 
             std::string filename = tableName + "_" + temp.name + "_index";
           //  std::cout<<" tem name "<<temp.name<<std::endl;
@@ -1024,9 +1023,9 @@ RC RelationManager::insertIntoIndices(std::string tableName,std:: vector<Attribu
             if(temp.type == TypeVarChar){
                 int length;
                 memcpy(&length, (char*)data+nullinfosize, sizeof(int));
-                nullinfosize += sizeof(int) + length;
+                nullinfosize += sizeof(int) + length; //size + actual len
             }
-            else{
+            else if (temp.type == TypeInt || temp.type == TypeReal){
                 nullinfosize += temp.length;
             }
         }
@@ -1069,7 +1068,7 @@ RC RelationManager::deleteIndices(FileHandle &fileHandle, std::vector<Attribute>
                 memcpy(&length, (char*)pageData+nullinfosize, sizeof(int));
                 nullinfosize += sizeof(int) + length;
             }
-            else{
+            else if(temp.type == TypeReal || temp.type == TypeInt){
                 nullinfosize += temp.length;
             }
         }

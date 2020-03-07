@@ -33,6 +33,7 @@ public:
 
 
     IX_ScanIterator ixScanIterator;
+    IXFileHandle ixFileHandle;
     RM_IndexScanIterator() {
     };    // Constructor
     ~RM_IndexScanIterator() {};    // Destructor
@@ -41,7 +42,8 @@ public:
     RC getNextEntry(RID &rid, void *key);    // Get next matching entry
     RC close();
     // Terminate index scan
-
+    std::string tableName;
+    Attribute attribute;
 
 
 };
@@ -122,8 +124,11 @@ protected:
     void initIndexRecord(std::vector<Attribute> &recordDescriptor);
     RC getTableId(std::string tablename);
     void prepareIndexRecord(int recordsize, char *bitinfo, int tableId, const std::string &colName,const std::string &fileName, void *record);
+    RC getIndices(const std::string &tableName, std::vector<std::string> &attrs);
+    RC insertIntoIndices(std::string tableName,std:: vector<Attribute> &recordDescriptor,const void* data,const RID &rid);
+    RC deleteIndices(FileHandle &fileHandle, std::vector<Attribute> & recordDesc, const std::string &tableName, const RID &rid);
 
-private:
+        private:
     static RelationManager *_relation_manager;
 };
 
