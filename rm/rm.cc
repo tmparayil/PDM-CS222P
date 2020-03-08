@@ -686,10 +686,8 @@ RC RelationManager::createIndex(const std::string &tableName, const std::string 
     IndexManager &indexManager = IndexManager::instance();
     std::string fileName = tableName + "_" + attributeName + "_index";
     indexManager.createFile(fileName);
-    FileHandle fileHandle_ix;
-    RecordBasedFileManager &rbfm = RecordBasedFileManager::instance();
-    rbfm.openFile("Indices", fileHandle_ix);
-
+    int tableId = getTableId(tableName);
+    //std::cout<<"file name"<<fileName<<std::endl;
 
     std::vector<Attribute> recordDescriptor;
     initIndexRecord(recordDescriptor);
@@ -699,10 +697,11 @@ RC RelationManager::createIndex(const std::string &tableName, const std::string 
     memset(bitInfo,0,nullinfosize);
 
     //get tuple to insert in the Indices file
-    int tableId = getTableId(tableName);
 
-    /*
+
+/*
     std::cout<<"table id " <<tableId<<std::endl;
+
     std::cout<<"Column name " <<attributeName<<std::endl;
     */
 
@@ -711,6 +710,15 @@ RC RelationManager::createIndex(const std::string &tableName, const std::string 
     void* record = malloc(300);
     prepareIndexRecord(recordDescriptor.size(), bitInfo, tableId, attributeName, fileName, record);
 
+
+    /*int temp;
+    memcpy(&temp, (char*)record + 1, sizeof(int));
+    std::cout<<"temp value "<<temp<<std::endl;
+     */
+
+    FileHandle fileHandle_ix;
+    RecordBasedFileManager &rbfm = RecordBasedFileManager::instance();
+    rbfm.openFile("Indices", fileHandle_ix);
     rbfm.insertRecord(fileHandle_ix, recordDescriptor, record, rid);
 
     //insert into btree -> fileName file
@@ -720,22 +728,22 @@ RC RelationManager::createIndex(const std::string &tableName, const std::string 
     std::vector<Attribute> attributes;
     getAttributes(tableName, attributes);
     Attribute attr;
+    std::vector<std::string>attrs;
+    attrs.push_back(attributeName);
     for(int i = 0; i < attributes.size(); i++ ){
         //std::cout<<" "<<attributes[i].name<<std::endl;
-
         if(attributes[i].name == attributeName){
             attr = attributes[i];
             break;
         }
     }
 
-    std::vector<std::string>attrs;
-    attrs.push_back(attributeName);
+
     this -> scan(tableName, "", NO_OP, NULL, attrs,rmScanIterator);
-    void* returnedData = malloc(PAGE_SIZE);
+    void* returnedData = malloc(300);
     char* nullinfo = new char[1];
 
-    while(rmScanIterator.getNextTuple(rid,returnedData) != RBFM_EOF){
+    while(rmScanIterator.getNextTuple(rid,returnedData) != RM_EOF){
         memcpy(nullinfo, (char*) returnedData, 1);
         bool nullbit = nullinfo[0] & (1 << 7);
         if(!nullbit){
@@ -743,7 +751,7 @@ RC RelationManager::createIndex(const std::string &tableName, const std::string 
         }
     }
 
-
+    //   indexManager.printBtree(ixFileHandler, attr);
     ixFileHandler.file->close();
     rmScanIterator.close();
     free(returnedData);
@@ -843,8 +851,10 @@ void RelationManager:: initIndexRecord(std::vector<Attribute> &recordDescriptor)
 RC RelationManager::destroyIndex(const std::string &tableName, const std::string &attributeName) {
 
     IndexManager &indexManager = IndexManager::instance();
-    int tableId = getTableId(tableName);
     std::string indexFileName = tableName + "_" + attributeName + "_index";
+    std::vector<Attribute> recordDescriptor;
+    initIndexRecord(recordDescriptor);
+
 
     if(!FileExists(indexFileName))
         return -1;
@@ -852,9 +862,6 @@ RC RelationManager::destroyIndex(const std::string &tableName, const std::string
     FileHandle fileHandle;
     RecordBasedFileManager &rbfm = RecordBasedFileManager::instance();
     rbfm.openFile("Indices", fileHandle);
-
-    std::vector<Attribute> recordDescriptor;
-    initIndexRecord(recordDescriptor);
 
 
     int length = indexFileName.length();
