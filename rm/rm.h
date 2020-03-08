@@ -31,20 +31,19 @@ public:
 class RM_IndexScanIterator {
 public:
 
-
     IX_ScanIterator ixScanIterator;
-    IXFileHandle ixFileHandle;
-    RM_IndexScanIterator() {
-    };    // Constructor
+    RM_IndexScanIterator() {};    // Constructor
     ~RM_IndexScanIterator() {};    // Destructor
 
     // "key" follows the same format as in IndexManager::insertEntry()
     RC getNextEntry(RID &rid, void *key);    // Get next matching entry
     RC close();
     // Terminate index scan
+
     std::string tableName;
     Attribute attribute;
 
+    IXFileHandle ixFileHandle;
 
 };
 
@@ -100,12 +99,12 @@ public:
 
     // indexScan returns an iterator to allow the caller to go through qualified entries in index
     RC indexScan(const std::string &tableName,
-            const std::string &attributeName,
-            const void *lowKey,
-            const void *highKey,
-            bool lowKeyInclusive,
-            bool highKeyInclusive,
-            RM_IndexScanIterator &rm_IndexScanIterator);
+                 const std::string &attributeName,
+                 const void *lowKey,
+                 const void *highKey,
+                 bool lowKeyInclusive,
+                 bool highKeyInclusive,
+                 RM_IndexScanIterator &rm_IndexScanIterator);
 
 protected:
     RelationManager();                                                  // Prevent construction
@@ -127,8 +126,7 @@ protected:
     RC getIndices(const std::string &tableName, std::vector<std::string> &attrs);
     RC insertIntoIndices(std::string tableName,std:: vector<Attribute> &recordDescriptor,const void* data,const RID &rid);
     RC deleteIndices(FileHandle &fileHandle, std::vector<Attribute> & recordDesc, const std::string &tableName, const RID &rid);
-
-        private:
+private:
     static RelationManager *_relation_manager;
 };
 
