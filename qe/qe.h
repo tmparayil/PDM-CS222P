@@ -1,6 +1,8 @@
+
 #ifndef _qe_h_
 #define _qe_h_
 
+#include <unordered_map>
 #include "../rbf/rbfm.h"
 #include "../rm/rm.h"
 #include "../ix/ix.h"
@@ -8,7 +10,7 @@
 #define QE_EOF (-1)  // end of the index scan
 
 typedef enum {
-    MIN = 0, MAX, COUNT, SUM, AVG
+    MIN = 0, MAX = 1, COUNT = 2, SUM = 3, AVG = 4
 } AggregateOp;
 
 // The following functions use the following
@@ -167,29 +169,39 @@ public:
 class Filter : public Iterator {
     // Filter operator
 public:
+
+    Iterator *input;
+    Condition condition;
+
     Filter(Iterator *input,               // Iterator of input R
            const Condition &condition     // Selection condition
     );
 
     ~Filter() override {};
 
-    RC getNextTuple(void *data) override { return QE_EOF; };
+    RC getNextTuple(void *data);
 
     // For attribute in std::vector<Attribute>, name it as rel.attr
-    void getAttributes(std::vector<Attribute> &attrs) const override {};
+    void getAttributes(std::vector<Attribute> &attrs) const;
+
+
 };
 
 class Project : public Iterator {
     // Projection operator
 public:
-    Project(Iterator *input,                    // Iterator of input R
-            const std::vector<std::string> &attrNames) {};   // std::vector containing attribute names
-    ~Project() override = default;
 
-    RC getNextTuple(void *data) override { return QE_EOF; };
+    Iterator *input;
+    std::vector<std::string> attrNames;
+    Project(Iterator *input,                    // Iterator of input R
+            const std::vector<std::string> &attrNames);   // std::vector containing attribute names
+    ~Project() override {};
+
+    RC getNextTuple(void *data);
 
     // For attribute in std::vector<Attribute>, name it as rel.attr
-    void getAttributes(std::vector<Attribute> &attrs) const override {};
+    void getAttributes(std::vector<Attribute> &attrs) const;
+
 };
 
 class BNLJoin : public Iterator {
@@ -249,10 +261,22 @@ class Aggregate : public Iterator {
 public:
     // Mandatory
     // Basic aggregation
+
+    Iterator* input;
+    Attribute attribute;
+    AggregateOp op;
+    bool checkFlag;
+    Attribute groupAttr;
+    bool groupFlag;
+    std::unordered_map<std::string,std::vector<float>> strMap;
+    std::unordered_map<int,std::vector<float>> intMap;
+    std::unordered_map<float,std::vector<float>> floatMap;
+
+
     Aggregate(Iterator *input,          // Iterator of input R
               const Attribute &aggAttr,        // The attribute over which we are computing an aggregate
               AggregateOp op            // Aggregate operation
-    ) {};
+    );
 
     // Optional for everyone: 5 extra-credit points
     // Group-based hash aggregation
@@ -260,16 +284,27 @@ public:
               const Attribute &aggAttr,           // The attribute over which we are computing an aggregate
               const Attribute &groupAttr,         // The attribute over which we are grouping the tuples
               AggregateOp op              // Aggregate operation
-    ) {};
+    );
 
     ~Aggregate() = default;
 
-    RC getNextTuple(void *data) override { return QE_EOF; };
+    RC getNextTuple(void *data);
 
     // Please name the output attribute as aggregateOp(aggAttr)
     // E.g. Relation=rel, attribute=attr, aggregateOp=MAX
     // output attrname = "MAX(rel.attr)"
-    void getAttributes(std::vector<Attribute> &attrs) const override {};
+    void getAttributes(std::vector<Attribute> &attrs) const;
 };
+
+
+int getLengthOfRecord(const void* data,std::vector<Attribute>& recordDescriptor);
+bool checkIfTrueWrapper(const void* data,const Condition& condition,int ptr,const std::vector<Attribute>& recordDescriptor);
+void getAttributeValue(const void* data,void* value,int ptr,const std::vector<Attribute>& recordDescriptor);
+bool checkCondition(const void* value,const Condition& condition);
+bool checkConditionInt(int recordValue, int compareValue, CompOp comparisonOperator);
+bool checkConditionFloat(float recordValue, float compareValue, CompOp comparisonOperator);
+bool checkConditionChar(char *recordValue, char *compareValue, CompOp comparisonOperator);
+RC mappingRecord(const std::vector<Attribute>& recordDescriptor, const void *record, void *data, const std::vector<int>& attrPos);
+
 
 #endif
