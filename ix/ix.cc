@@ -300,7 +300,10 @@ bool isSpaceAvailable(const void *page, int length) {
 RC IndexManager::insertEntry(IXFileHandle &ixFileHandle, const Attribute &attribute, const void *key, const RID &rid) {
 
     int totalPages = ixFileHandle.getNumberOfPages();
-
+   /* int curr;
+    memcpy(&curr, (char*)key, sizeof(int));
+    std::cout<<"key value is :"<<curr<<std::endl;
+*/
     if(totalPages == 0)
     {
         setRootPage(ixFileHandle,NULL,0,true);
