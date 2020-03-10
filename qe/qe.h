@@ -1,4 +1,3 @@
-
 #ifndef _qe_h_
 #define _qe_h_
 
@@ -144,6 +143,7 @@ public:
         if (rc == 0) {
             rc = rm.readTuple(tableName.c_str(), rid, data);
         }
+
         return rc;
     };
 
@@ -179,10 +179,10 @@ public:
 
     ~Filter() override {};
 
-    RC getNextTuple(void *data);
+    RC getNextTuple(void *data) override;
 
     // For attribute in std::vector<Attribute>, name it as rel.attr
-    void getAttributes(std::vector<Attribute> &attrs) const;
+    void getAttributes(std::vector<Attribute> &attrs) const override;
 
 
 };
@@ -197,45 +197,61 @@ public:
             const std::vector<std::string> &attrNames);   // std::vector containing attribute names
     ~Project() override {};
 
-    RC getNextTuple(void *data);
+    RC getNextTuple(void *data) override;
 
     // For attribute in std::vector<Attribute>, name it as rel.attr
-    void getAttributes(std::vector<Attribute> &attrs) const;
+    void getAttributes(std::vector<Attribute> &attrs) const override;
 
 };
 
 class BNLJoin : public Iterator {
     // Block nested-loop join operator
+    Iterator *leftIn;
+    TableScan *rightIn;
+    Condition condition;
+    unsigned  numPages;
+    bool innerLeftOver = false;
+
+
 public:
     BNLJoin(Iterator *leftIn,            // Iterator of input R
             TableScan *rightIn,           // TableScan Iterator of input S
             const Condition &condition,   // Join condition
             const unsigned numPages       // # of pages that can be loaded into memory,
             //   i.e., memory block size (decided by the optimizer)
-    ) {};
+    );
 
     ~BNLJoin() override = default;;
 
-    RC getNextTuple(void *data) override { return QE_EOF; };
+    RC getNextTuple(void *data) override;
 
     // For attribute in std::vector<Attribute>, name it as rel.attr
-    void getAttributes(std::vector<Attribute> &attrs) const override {};
+    void getAttributes(std::vector<Attribute> &attrs) const override;
+    void getStrings(std::string &left, std::string &right);
+
 };
 
 class INLJoin : public Iterator {
     // Index nested-loop join operator
 public:
+
+    Iterator *leftIn;
+    IndexScan *rightIn;
+    Condition condition;
+    bool leftOver;
+    bool innerLeftOver;
+
     INLJoin(Iterator *leftIn,           // Iterator of input R
             IndexScan *rightIn,          // IndexScan Iterator of input S
             const Condition &condition   // Join condition
-    ) {};
+    );
 
     ~INLJoin() override = default;
 
-    RC getNextTuple(void *data) override { return QE_EOF; };
+    RC getNextTuple(void *data) override;
 
     // For attribute in std::vector<Attribute>, name it as rel.attr
-    void getAttributes(std::vector<Attribute> &attrs) const override {};
+    void getAttributes(std::vector<Attribute> &attrs) const override;
 };
 
 // Optional for everyone. 10 extra-credit points
@@ -305,6 +321,9 @@ bool checkConditionInt(int recordValue, int compareValue, CompOp comparisonOpera
 bool checkConditionFloat(float recordValue, float compareValue, CompOp comparisonOperator);
 bool checkConditionChar(char *recordValue, char *compareValue, CompOp comparisonOperator);
 RC mappingRecord(const std::vector<Attribute>& recordDescriptor, const void *record, void *data, const std::vector<int>& attrPos);
-
+int checkIfValidAttribute(std::string attrName,const std::vector<Attribute>& recordDescriptor);
+void combineNullBits(const void* record,const void* currRecord,int nullInfo1,int nullInfo2,void* finalBit,int x,int y,int nullInfo);
+int getLength(std::vector<Attribute> attributes);
+void getAttributeValueBlock(const void* data,void* value,int ptr,const std::vector<Attribute>& recordDescriptor, int blockOffset);
 
 #endif
