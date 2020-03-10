@@ -2,6 +2,7 @@
 #define _qe_h_
 
 #include <unordered_map>
+#include <queue>
 #include "../rbf/rbfm.h"
 #include "../rm/rm.h"
 #include "../ix/ix.h"
@@ -210,7 +211,9 @@ class BNLJoin : public Iterator {
     TableScan *rightIn;
     Condition condition;
     unsigned  numPages;
-    bool innerLeftOver = false;
+    //bool innerLeftOver = false;
+    std::queue <void*>joinresult;
+    std::queue<int> joinsize;
 
 
 public:

@@ -395,7 +395,7 @@ void getAttributeValue(const void* data,void* value,int ptr,const std::vector<At
     return;
 }
 
-int getLengthOfRecord(const void* data,std::vector<Attribute>& recordDescriptor)
+int getLengthOfRecord(const void* recdata,std::vector<Attribute>& recordDescriptor)
 {
     bool checknull;
     uint32_t RecSize = 0;
@@ -404,8 +404,9 @@ int getLengthOfRecord(const void* data,std::vector<Attribute>& recordDescriptor)
 
     RecSize += bytesforNullIndic;
 
-    unsigned char *null_Fields_Indicator = (unsigned char *) malloc(nullinfosize);
-    memcpy(null_Fields_Indicator, (char *) data, nullinfosize);
+    char* null_Fields_Indicator = new char[nullinfosize];
+
+    memcpy((char*)null_Fields_Indicator, (char *) recdata, nullinfosize);
 
     for (int i = 0; i < recordDescriptor.size(); i++) {
         checknull = null_Fields_Indicator[i / 8] & (1 << (7 - i % 8));
@@ -417,7 +418,7 @@ int getLengthOfRecord(const void* data,std::vector<Attribute>& recordDescriptor)
                     break;
                 case TypeVarChar:
                     int temp = 0;
-                    memcpy((char*)&temp, (char *) data + RecSize, sizeof(int));
+                    memcpy((char*)&temp, (char *) recdata + RecSize, sizeof(int));
                     RecSize += temp + sizeof(int);
                     break;
             }
@@ -800,6 +801,7 @@ RC BNLJoin::getNextTuple(void *data){
     this->leftIn->getAttributes(recordDescriptorLeft);
     this->rightIn->getAttributes(recordDescriptorRight);
 
+
     int nullInfo1 = ceil((double) recordDescriptorLeft.size() / CHAR_BIT);
     std::vector<Attribute> recordDescriptor;
     BNLJoin::getAttributes(recordDescriptor);
@@ -812,14 +814,20 @@ RC BNLJoin::getNextTuple(void *data){
         return -1;
 
     void *leftrec = malloc(PAGE_SIZE);
+   // std::cout<<"size"<<joinresult.size()<<std::endl;
+    if(!joinresult.empty()){
+        memcpy((char*)data, (char*)joinresult.front(), joinsize.front());
+        joinresult.pop();
+        joinsize.pop();
+        return 0;
+    }
 
     while(this -> leftIn -> getNextTuple(leftrec) != QE_EOF){
-        std::cout<<"inside while "<<std::endl;
         int count = 0;
         void* leftBlock = malloc(PAGE_SIZE*numPages);
 
         //get the left block
-        std::vector<int> recordSizeInBlock;
+        std::vector<int> recordSizeInBlock{};
         int recSize = getLengthOfRecord(leftrec, recordDescriptorLeft);
        // std::cout<<"rec size is "<<recSize<<std::endl;
 
@@ -845,14 +853,11 @@ RC BNLJoin::getNextTuple(void *data){
 
         if(recordDescriptorLeft[ptr1].type == TypeInt) {
 
-            if(!this->innerLeftOver) {
-                std::cout<<"ghjkl"<<std::endl;
-                this->rightIn->setIterator();
-            }
 
+
+            this->rightIn->setIterator();
             void* currRecord = malloc(PAGE_SIZE);
             while(this->rightIn->getNextTuple(currRecord) != QE_EOF) {
-
                 //compare x2 with records in x1
                 int currcount = 0;
                 int i = 0;
@@ -861,6 +866,7 @@ RC BNLJoin::getNextTuple(void *data){
                     void *record = malloc(recordSizeInBlock[i]);
                     memcpy((char*)record, (char*) leftBlock + currcount, recordSizeInBlock[i]);
                     getAttributeValue(record, intValue, ptr1, recordDescriptorLeft);
+                   // std::cout<<"record size"<<recordSizeInBlock[i]<<std::endl;
 
                     int length2 = getLengthOfRecord(currRecord, recordDescriptorRight);
                     int nullInfo2 = ceil((double) recordDescriptorRight.size() / CHAR_BIT);
@@ -875,98 +881,126 @@ RC BNLJoin::getNextTuple(void *data){
 
                     if (x1 == x2) {
                         void *finalBit = malloc(nullInfo);
+                        int datalength = nullInfo + recordSizeInBlock[i] - nullInfo1 + length2 - nullInfo2;
+                        void* tempdata = malloc(datalength);
 
                         combineNullBits(record, currRecord, nullInfo1, nullInfo2, finalBit, recordDescriptorLeft.size(),
                                         recordDescriptorRight.size(), nullInfo);
-                        memcpy((char*)data, (char*)finalBit, nullInfo);
-                        memcpy((char *) data + nullInfo, (char *) record + nullInfo1, recordSizeInBlock[i] - nullInfo1);
+                        memcpy((char*)tempdata, (char*)finalBit, nullInfo);
+                        memcpy((char *) tempdata + nullInfo, (char *) record + nullInfo1, recordSizeInBlock[i] - nullInfo1);
 
-                        memcpy((char *) data + nullInfo + recordSizeInBlock[i] - nullInfo1, (char *) currRecord + nullInfo2,
+                        memcpy((char *) tempdata + nullInfo + recordSizeInBlock[i] - nullInfo1, (char *) currRecord + nullInfo2,
                                length2 - nullInfo2);
+
+
+
+
+                      /*  int temp = 0;
+
+                        std::cout<<"right size : "<<length2 - nullInfo2<<std::endl;
+                        memcpy(&temp , (char *) currRecord + nullInfo2+ 2*sizeof(int), sizeof(int) );
+                        std::cout<<"temp val "<<temp<<std::endl;
+*/
                         free(newIntValue);
                         free(intValue);
-                        free(currRecord);
-                        this->innerLeftOver = true;
-                        free(record);
-                        return 0;
+                        joinresult.push(tempdata);
+                        joinsize.push(datalength);
+                        //this->innerLeftOver = true;
+
 
                     }
                     currcount += recordSizeInBlock[i];
                     i++;
                     free(record);
                 }
-               // this->entriesLeft = false;
-               // this->innerLeftOver = false;
-                free(currRecord);
-
             }
-            this->innerLeftOver = false;
-            continue;
+            free(currRecord);
+
+
 
         }
        else  if(recordDescriptorLeft[ptr1].type == TypeReal) {
 
-            if(!this->innerLeftOver) {
-                this->rightIn->setIterator();
-            }
 
+
+            this->rightIn->setIterator();
             void* currRecord = malloc(PAGE_SIZE);
             while(this->rightIn->getNextTuple(currRecord) != QE_EOF) {
-
                 //compare x2 with records in x1
                 int currcount = 0;
                 int i = 0;
-                while (currcount <= numPages * PAGE_SIZE) {
-                    void *floatValue = malloc(sizeof(int));
+                while (i < recordSizeInBlock.size()) {
+                    void *intValue = malloc(sizeof(int));
                     void *record = malloc(recordSizeInBlock[i]);
-                    memcpy((char*) leftBlock + currcount, (char*)record, recordSizeInBlock[i]);
+                    memcpy((char*)record, (char*) leftBlock + currcount, recordSizeInBlock[i]);
+                    getAttributeValue(record, intValue, ptr1, recordDescriptorLeft);
+                    // std::cout<<"record size"<<recordSizeInBlock[i]<<std::endl;
 
-                    getAttributeValue(record, floatValue, ptr1, recordDescriptorLeft);
                     int length2 = getLengthOfRecord(currRecord, recordDescriptorRight);
                     int nullInfo2 = ceil((double) recordDescriptorRight.size() / CHAR_BIT);
 
-                    void *newFloatValue = malloc(sizeof(int));
+                    void *newIntValue = malloc(sizeof(int));
+                    getAttributeValue(currRecord,newIntValue,ptr2,recordDescriptorRight);
 
                     float x1, x2;
-                    memcpy((char *) &x1, (char *) floatValue, sizeof(int));
-                    memcpy((char *) &x2, (char *) newFloatValue, sizeof(int));
-                //     std::cout<<x1<<" , "<<x2<<std::endl;
+                    memcpy((char *) &x1, (char *) intValue, sizeof(int));
+                    memcpy((char *) &x2, (char *) newIntValue, sizeof(int));
+                    //   std::cout<<x1<<" , "<<x2<<std::endl;
 
                     if (x1 == x2) {
                         void *finalBit = malloc(nullInfo);
+                        int datalength = nullInfo + recordSizeInBlock[i] - nullInfo1 + length2 - nullInfo2;
+                        void* tempdata = malloc(datalength);
 
                         combineNullBits(record, currRecord, nullInfo1, nullInfo2, finalBit, recordDescriptorLeft.size(),
                                         recordDescriptorRight.size(), nullInfo);
-                        memcpy((char*)data, (char*)finalBit, nullInfo);
-                        memcpy((char *) data + nullInfo, (char *) record + nullInfo1, recordSizeInBlock[i] - nullInfo1);
-                        memcpy((char *) data + nullInfo + recordSizeInBlock[i] - nullInfo1, (char *) currRecord + nullInfo2,
+                        memcpy((char*)tempdata, (char*)finalBit, nullInfo);
+                        memcpy((char *) tempdata + nullInfo, (char *) record + nullInfo1, recordSizeInBlock[i] - nullInfo1);
+
+                        memcpy((char *) tempdata + nullInfo + recordSizeInBlock[i] - nullInfo1, (char *) currRecord + nullInfo2,
                                length2 - nullInfo2);
 
-                        this->innerLeftOver = true;
-                        free(newFloatValue);
-                        free(floatValue);
-                        free(currRecord);
-                        free(record);
-                        return 0;
+
+
+
+                        /*  int temp = 0;
+
+                          std::cout<<"right size : "<<length2 - nullInfo2<<std::endl;
+                          memcpy(&temp , (char *) currRecord + nullInfo2+ 2*sizeof(int), sizeof(int) );
+                          std::cout<<"temp val "<<temp<<std::endl;
+  */
+                        free(newIntValue);
+                        free(intValue);
+                        joinresult.push(tempdata);
+                        joinsize.push(datalength);
+                        //this->innerLeftOver = true;
+
 
                     }
                     currcount += recordSizeInBlock[i];
                     i++;
                     free(record);
                 }
-                free(currRecord);
-
-
             }
-            this->innerLeftOver = false;
-            continue;
+            free(currRecord);
+
 
 
         }
-       free(leftBlock);
+
+        free(leftBlock);
+
+
     }
 
-
+    if(!joinresult.empty()){
+    memcpy((char*)data,(char*)joinresult.front(), joinsize.front() );
+        std::cout<<"size"<<joinresult.size()<<std::endl;
+        joinresult.pop();
+        joinsize.pop();
+        return 0;
+    }
+    else return QE_EOF;
 
 
 }
