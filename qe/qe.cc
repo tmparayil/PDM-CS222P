@@ -49,7 +49,7 @@ RC Filter::getNextTuple(void *data) {
                 return 0;
             }
         } else {
-            // Comparison between two attributes section
+            std::cout<<"comparison between 2 attributes"<<std::endl;
         }
 
     }
@@ -125,13 +125,24 @@ Project::Project(Iterator *input,const std::vector<std::string>& attrNames)
 }
 
 void Project::getAttributes(std::vector<Attribute> &attrs) const {
-    this->input->getAttributes(attrs);
+    std::vector<Attribute> temp;
+    this->input->getAttributes(temp);
+    for(std::string attrName : this->attrNames)
+    {
+        for(Attribute attr: temp)
+        {
+            if(attr.name == attrName)
+            {
+                attrs.push_back(attr);
+            }
+        }
+    }
 }
 
 RC Project::getNextTuple(void *data) {
 
     std::vector<Attribute> recordDescriptor;
-    Project::getAttributes(recordDescriptor);
+    this->input->getAttributes(recordDescriptor);
 
     int i = 0;
     std::vector<int> attrPos;
@@ -170,7 +181,6 @@ RC mappingRecord(const std::vector<Attribute>& recordDescriptor, const void *rec
     int nullInfo = ceil((double) attrPos.size() / CHAR_BIT);
     char* bitInfo = new char[nullInfo];
     memset(bitInfo, 0 , nullInfo);
-
 
     int nullBitInfo = ceil((double) recordDescriptor.size() / 8);
     bool checkNull = false;
@@ -275,6 +285,64 @@ bool checkConditionChar(char *recordValue, char *compareValue, CompOp comparison
 }
 
 
+
+
+void getAttributeValueBlock(const void* data,void* value,int ptr,const std::vector<Attribute>& recordDescriptor, int blockOffset)
+{
+    int nullInfo = ceil((double) recordDescriptor.size() / 8);
+    bool checkNull = false;
+
+    char* nullFields = (char*)malloc(nullInfo);
+    memcpy(nullFields,(char*)data,nullInfo);
+
+    int offset = blockOffset;
+    offset += nullInfo;
+
+    for(int i=0; i < ptr;i++)
+    {
+        checkNull = nullFields[i/8] & (1 << (7 - i % 8));
+        if(!checkNull)
+        {
+            switch (recordDescriptor[i].type) {
+                case TypeInt:
+                case TypeReal:
+                    offset += recordDescriptor[i].length;
+                    break;
+                case TypeVarChar:
+                    int temp = 0;
+                    memcpy((char*)&temp, (char *) data + offset, sizeof(int));
+                    offset += temp + sizeof(int);
+                    break;
+            }
+        }
+    }
+
+    checkNull = nullFields[ptr/8] & (1 << (7 - ptr % 8));
+
+    if(checkNull)
+    {
+        //the attribute required is null
+//        std::cout<<"Handle null in getAttribute"<<std::endl;
+    }
+
+    if(recordDescriptor[ptr].type == TypeReal || recordDescriptor[ptr].type == TypeInt)
+    {
+        int temp = 0;
+        memcpy((char*)value,(char*)data + offset, sizeof(int));
+
+        memcpy(&temp,(char*)data + offset, sizeof(int));
+
+    }
+    else if(recordDescriptor[ptr].type == TypeVarChar)
+    {
+        int length;
+        memcpy((char*)&length, (char*)data + offset, sizeof(int));
+        memcpy((char*)value,(char*)data + offset,length + sizeof(int));
+    }
+    free(nullFields);
+    return;
+}
+
 void getAttributeValue(const void* data,void* value,int ptr,const std::vector<Attribute>& recordDescriptor)
 {
     int nullInfo = ceil((double) recordDescriptor.size() / 8);
@@ -310,7 +378,7 @@ void getAttributeValue(const void* data,void* value,int ptr,const std::vector<At
     if(checkNull)
     {
         //the attribute required is null
-        std::cout<<"Handle null in getAttribute"<<std::endl;
+//        std::cout<<"Handle null in getAttribute"<<std::endl;
     }
 
     if(recordDescriptor[ptr].type == TypeReal || recordDescriptor[ptr].type == TypeInt)
@@ -410,7 +478,7 @@ RC Aggregate::getNextTuple(void *data) {
             return -1;
 
         int x = 0;
-        float minVar = MAXFLOAT;float max = FLT_MIN; float sum = 0;
+        float minVar = FLT_MAX;float max = FLT_MIN; float sum = 0;
         float count = 0;
         void* record = malloc(PAGE_SIZE);
         while(this->input->getNextTuple(record) != QE_EOF)
@@ -687,3 +755,441 @@ RC Aggregate::getNextTuple(void *data) {
     }
 
 }
+
+int checkIfValidAttribute(std::string attrName,const std::vector<Attribute>& recordDescriptor)
+{
+    int check = -1;
+    for(int i = 0; i<recordDescriptor.size();i++)
+    {
+        if(recordDescriptor[i].name == attrName)
+        {
+            check = i;
+            break;
+        }
+    }
+    return check;
+}
+
+
+INLJoin::INLJoin(Iterator *leftIn,IndexScan *rightIn,const Condition &condition){
+    this->leftIn = leftIn;
+    this->rightIn = rightIn;
+    this->condition = condition;
+    this->leftOver = true;
+    this->innerLeftOver = false;
+}
+
+void INLJoin::getAttributes(std::vector<Attribute> &attrs) const {
+
+    std::vector<Attribute> temp;
+    this->leftIn->getAttributes(temp);
+    for(Attribute attr: temp)
+    {
+        attrs.push_back(attr);
+    }
+
+    this->rightIn->getAttributes(temp);
+    for(Attribute attr: temp)
+    {
+        attrs.push_back(attr);
+    }
+}
+RC BNLJoin::getNextTuple(void *data){
+    std::vector<Attribute> recordDescriptorLeft;
+    std::vector<Attribute> recordDescriptorRight;
+    this->leftIn->getAttributes(recordDescriptorLeft);
+    this->rightIn->getAttributes(recordDescriptorRight);
+
+    int nullInfo1 = ceil((double) recordDescriptorLeft.size() / CHAR_BIT);
+    std::vector<Attribute> recordDescriptor;
+    BNLJoin::getAttributes(recordDescriptor);
+    int nullInfo = ceil((double) recordDescriptor.size() / CHAR_BIT);
+
+
+    int ptr1 = checkIfValidAttribute(condition.lhsAttr,recordDescriptorLeft);
+    int ptr2 = checkIfValidAttribute(condition.rhsAttr,recordDescriptorRight);
+    if( ptr1 == -1 || ptr2 == -1)
+        return -1;
+
+    void *leftrec = malloc(PAGE_SIZE);
+
+    while(this -> leftIn -> getNextTuple(leftrec) != QE_EOF){
+        std::cout<<"inside while "<<std::endl;
+        int count = 0;
+        void* leftBlock = malloc(PAGE_SIZE*numPages);
+
+        //get the left block
+        std::vector<int> recordSizeInBlock;
+        int recSize = getLengthOfRecord(leftrec, recordDescriptorLeft);
+       // std::cout<<"rec size is "<<recSize<<std::endl;
+
+        memcpy((char*) leftBlock + count, leftrec, recSize);
+        count += recSize;
+        recordSizeInBlock.push_back(recSize);
+
+        //get the left block
+        while(count <= numPages*PAGE_SIZE){
+            if(this -> leftIn -> getNextTuple(leftrec) != QE_EOF) {
+                int recSize = getLengthOfRecord(leftrec, recordDescriptorLeft);
+                memcpy((char *) leftBlock + count, leftrec, recSize);
+                count += recSize;
+                //     std::cout<<"rec size in loop is "<<recSize<<std::endl;
+                recordSizeInBlock.push_back(recSize);
+            } else
+                break;
+        }
+
+        free(leftrec);
+        //std::cout<<"left block stored "<<std::endl;
+        //the left block of size numPages*PAGE_SIZE done
+
+        if(recordDescriptorLeft[ptr1].type == TypeInt) {
+
+            if(!this->innerLeftOver) {
+                std::cout<<"ghjkl"<<std::endl;
+                this->rightIn->setIterator();
+            }
+
+            void* currRecord = malloc(PAGE_SIZE);
+            while(this->rightIn->getNextTuple(currRecord) != QE_EOF) {
+
+                //compare x2 with records in x1
+                int currcount = 0;
+                int i = 0;
+                while (i < recordSizeInBlock.size()) {
+                    void *intValue = malloc(sizeof(int));
+                    void *record = malloc(recordSizeInBlock[i]);
+                    memcpy((char*)record, (char*) leftBlock + currcount, recordSizeInBlock[i]);
+                    getAttributeValue(record, intValue, ptr1, recordDescriptorLeft);
+
+                    int length2 = getLengthOfRecord(currRecord, recordDescriptorRight);
+                    int nullInfo2 = ceil((double) recordDescriptorRight.size() / CHAR_BIT);
+
+                    void *newIntValue = malloc(sizeof(int));
+                    getAttributeValue(currRecord,newIntValue,ptr2,recordDescriptorRight);
+
+                    int x1, x2;
+                    memcpy((char *) &x1, (char *) intValue, sizeof(int));
+                    memcpy((char *) &x2, (char *) newIntValue, sizeof(int));
+            //   std::cout<<x1<<" , "<<x2<<std::endl;
+
+                    if (x1 == x2) {
+                        void *finalBit = malloc(nullInfo);
+
+                        combineNullBits(record, currRecord, nullInfo1, nullInfo2, finalBit, recordDescriptorLeft.size(),
+                                        recordDescriptorRight.size(), nullInfo);
+                        memcpy((char*)data, (char*)finalBit, nullInfo);
+                        memcpy((char *) data + nullInfo, (char *) record + nullInfo1, recordSizeInBlock[i] - nullInfo1);
+
+                        memcpy((char *) data + nullInfo + recordSizeInBlock[i] - nullInfo1, (char *) currRecord + nullInfo2,
+                               length2 - nullInfo2);
+                        free(newIntValue);
+                        free(intValue);
+                        free(currRecord);
+                        this->innerLeftOver = true;
+                        free(record);
+                        return 0;
+
+                    }
+                    currcount += recordSizeInBlock[i];
+                    i++;
+                    free(record);
+                }
+               // this->entriesLeft = false;
+               // this->innerLeftOver = false;
+                free(currRecord);
+
+            }
+            this->innerLeftOver = false;
+            continue;
+
+        }
+       else  if(recordDescriptorLeft[ptr1].type == TypeReal) {
+
+            if(!this->innerLeftOver) {
+                this->rightIn->setIterator();
+            }
+
+            void* currRecord = malloc(PAGE_SIZE);
+            while(this->rightIn->getNextTuple(currRecord) != QE_EOF) {
+
+                //compare x2 with records in x1
+                int currcount = 0;
+                int i = 0;
+                while (currcount <= numPages * PAGE_SIZE) {
+                    void *floatValue = malloc(sizeof(int));
+                    void *record = malloc(recordSizeInBlock[i]);
+                    memcpy((char*) leftBlock + currcount, (char*)record, recordSizeInBlock[i]);
+
+                    getAttributeValue(record, floatValue, ptr1, recordDescriptorLeft);
+                    int length2 = getLengthOfRecord(currRecord, recordDescriptorRight);
+                    int nullInfo2 = ceil((double) recordDescriptorRight.size() / CHAR_BIT);
+
+                    void *newFloatValue = malloc(sizeof(int));
+
+                    float x1, x2;
+                    memcpy((char *) &x1, (char *) floatValue, sizeof(int));
+                    memcpy((char *) &x2, (char *) newFloatValue, sizeof(int));
+                //     std::cout<<x1<<" , "<<x2<<std::endl;
+
+                    if (x1 == x2) {
+                        void *finalBit = malloc(nullInfo);
+
+                        combineNullBits(record, currRecord, nullInfo1, nullInfo2, finalBit, recordDescriptorLeft.size(),
+                                        recordDescriptorRight.size(), nullInfo);
+                        memcpy((char*)data, (char*)finalBit, nullInfo);
+                        memcpy((char *) data + nullInfo, (char *) record + nullInfo1, recordSizeInBlock[i] - nullInfo1);
+                        memcpy((char *) data + nullInfo + recordSizeInBlock[i] - nullInfo1, (char *) currRecord + nullInfo2,
+                               length2 - nullInfo2);
+
+                        this->innerLeftOver = true;
+                        free(newFloatValue);
+                        free(floatValue);
+                        free(currRecord);
+                        free(record);
+                        return 0;
+
+                    }
+                    currcount += recordSizeInBlock[i];
+                    i++;
+                    free(record);
+                }
+                free(currRecord);
+
+
+            }
+            this->innerLeftOver = false;
+            continue;
+
+
+        }
+       free(leftBlock);
+    }
+
+
+
+
+}
+RC INLJoin::getNextTuple(void *data) {
+
+    std::vector<Attribute> recordDescriptor1;
+    std::vector<Attribute> recordDescriptor2;
+
+    std::vector<Attribute> recordDescriptor;
+    INLJoin::getAttributes(recordDescriptor);
+
+    int nullInfo = ceil((double) recordDescriptor.size() / CHAR_BIT);
+
+    this->leftIn->getAttributes(recordDescriptor1);
+    this->rightIn->getAttributes(recordDescriptor2);
+
+    int nullInfo1 = ceil((double) recordDescriptor1.size() / CHAR_BIT);
+
+    int ptr1 = checkIfValidAttribute(condition.lhsAttr,recordDescriptor1);
+    int ptr2 = checkIfValidAttribute(condition.rhsAttr,recordDescriptor2);
+
+    if( ptr1 == -1 || ptr2 == -1)
+        return -1;
+
+    void* record = malloc(PAGE_SIZE);
+    while(this->leftOver && this->leftIn->getNextTuple(record) != QE_EOF)
+    {
+
+
+        int length1 = getLengthOfRecord(record,recordDescriptor1);
+
+        if(recordDescriptor1[ptr1].type == TypeInt)
+        {
+            void* intValue = malloc(sizeof(int));
+            getAttributeValue(record,intValue,ptr1,recordDescriptor1);
+
+            if(!this->innerLeftOver)
+                this->rightIn->setIterator(nullptr, nullptr,false,false);
+
+            void* currRecord = malloc(PAGE_SIZE);
+            while(this->rightIn->getNextTuple(currRecord) != QE_EOF)
+            {
+                int length2 = getLengthOfRecord(currRecord,recordDescriptor2);
+                int nullInfo2 = ceil((double) recordDescriptor2.size() / CHAR_BIT);
+
+                void* newIntValue = malloc(sizeof(int));
+                getAttributeValue(currRecord,newIntValue,ptr2,recordDescriptor2);
+
+                int x1 , x2;
+                memcpy((char*)&x1,(char*)intValue, sizeof(int));
+                memcpy((char*)&x2,(char*)newIntValue,sizeof(int));
+//                std::cout<<x1<<" , "<<x2<<std::endl;
+
+                if(x1 == x2)
+                {
+                    void* finalBit = malloc(nullInfo);
+                    combineNullBits(record,currRecord,nullInfo1,nullInfo2,finalBit,recordDescriptor1.size(),recordDescriptor2.size(),nullInfo);
+                    memcpy((char*)data + nullInfo,(char*)record + nullInfo1,length1 - nullInfo1);
+                    memcpy((char*)data + nullInfo + length1 - nullInfo1,(char*)currRecord + nullInfo2,length2 - nullInfo2);
+                    this->leftOver = true;
+                    this->innerLeftOver = true;
+                    free(newIntValue);
+                    free(intValue);
+                    free(currRecord);
+                    free(record);
+                    return 0;
+                }
+            }
+            this->leftOver = false;
+            this->innerLeftOver = false;
+            free(currRecord);
+            free(intValue);
+        }
+        if(recordDescriptor1[ptr1].type == TypeReal)
+        {
+            void* realValue = malloc(sizeof(int));
+            getAttributeValue(record,realValue,ptr1,recordDescriptor1);
+
+            if(!this->innerLeftOver)
+                this->rightIn->setIterator(nullptr, nullptr, false,false);
+
+            void* currRecord = malloc(PAGE_SIZE);
+            while(this->rightIn->getNextTuple(currRecord) != QE_EOF)
+            {
+                int length2 = getLengthOfRecord(currRecord,recordDescriptor2);
+                int nullInfo2 = ceil((double) recordDescriptor2.size() / CHAR_BIT);
+
+                void* newRealValue = malloc(sizeof(int));
+                getAttributeValue(currRecord,newRealValue,ptr2,recordDescriptor2);
+
+                float x1 , x2;
+                memcpy((char*)&x1,(char*)realValue, sizeof(int));
+                memcpy((char*)&x2,(char*)newRealValue,sizeof(int));
+//                std::cout<<x1<<" , "<<x2<<std::endl;
+
+                if(x1 == x2)
+                {
+                    void* finalBit = malloc(nullInfo);
+                    combineNullBits(record,currRecord,nullInfo1,nullInfo2,finalBit,recordDescriptor1.size(),recordDescriptor2.size(),nullInfo);
+                    memcpy((char*)data,(char*)finalBit,nullInfo);
+                    memcpy((char*)data + nullInfo,(char*)record + nullInfo1,length1 - nullInfo1);
+                    memcpy((char*)data + nullInfo + length1 - nullInfo1,(char*)currRecord + nullInfo2,length2 - nullInfo2);
+                    this->leftOver = true;
+                    this->innerLeftOver = true;
+                    free(newRealValue);
+                    free(currRecord);
+                    free(record);
+                    return 0;
+                }
+                free(newRealValue);
+            }
+            this->leftOver = false;
+            this->innerLeftOver = false;
+            free(realValue);
+            free(currRecord);
+        }
+    }
+    free(record);
+    return QE_EOF;
+}
+
+
+void combineNullBits(const void* record,const void* currRecord,int nullInfo1,int nullInfo2,void* finalBit,int x,int y,int nullInfo)
+{
+    char* bits = new char[nullInfo];
+    memset(bits,0,nullInfo);
+
+    char* nullBit1 = new char[nullInfo1];
+    char* nullBit2 = new char[nullInfo2];
+
+    memcpy((char*)nullBit1,(char*)record,nullInfo1);
+    memcpy((char*)nullBit2,(char*)currRecord,nullInfo2);
+
+    bool checkNull;
+    for(int i=0;i<x;i++)
+    {
+        checkNull = nullBit1[i/8] & (1 << (7 - i % 8));
+        if(checkNull)
+        {
+            int bitShift = nullInfo - 1 - i%nullInfo;
+            bits[i/CHAR_BIT] = bits[i / CHAR_BIT] | (1 << (bitShift));
+        }
+    }
+    for(int i=x;i<x + y;i++)
+    {
+        checkNull = nullBit2[i/8] & (1 << (7 - i % 8));
+        if(checkNull)
+        {
+            int bitShift = nullInfo - 1 - i%nullInfo;
+            bits[i/CHAR_BIT] = bits[i / CHAR_BIT] | (1 << (bitShift));
+        }
+    }
+    memcpy((char*)finalBit,(char*)bits,nullInfo);
+    free(nullBit1);
+    free(nullBit2);
+    free(bits);
+    return;
+
+
+}
+
+
+BNLJoin::BNLJoin(Iterator *leftIn,            // Iterator of input R
+                 TableScan *rightIn,           // TableScan Iterator of input S
+                 const Condition &condition,   // Join condition
+                 const unsigned numPages       // # of pages that can be loaded into memory,
+//   i.e., memory block size (decided by the optimizer)
+)
+{
+    this->leftIn = leftIn;
+    this->rightIn = rightIn;
+    this->condition = condition;
+    this -> numPages = numPages;
+
+}
+void BNLJoin::getAttributes(std::vector<Attribute> &attrs) const {
+
+    std::vector<Attribute> temp;
+    this->leftIn->getAttributes(temp);
+    for(Attribute attr: temp)
+    {
+        attrs.push_back(attr);
+    }
+
+    this->rightIn->getAttributes(temp);
+    for(Attribute attr: temp)
+    {
+        attrs.push_back(attr);
+    }
+}
+
+void BNLJoin::getStrings(std::string &leftString, std::string &rightString){
+
+    std::string temp = condition.lhsAttr;
+    std::cout<<"condition lhs attr: "<<temp<<std::endl;
+    int loc;
+    loc = temp.find(".");
+    leftString = temp.substr(loc+1);
+
+    std::cout<<"left key name "<<leftString<<std::endl;
+    temp = condition.rhsAttr;
+
+    std::cout<<"condition rhs attr: "<<temp<<std::endl;
+    loc = temp.find(".");
+    rightString = temp.substr(loc+1);
+    std::cout<<"right key name "<<rightString<<std::endl;
+
+}
+
+int getLength(std::vector<Attribute> attributes){
+    int recSize = 0;
+    int offset = ceil((double) attributes.size() / CHAR_BIT);
+    recSize += offset;
+    for(int i = 0; i < attributes.size(); i++){
+        if(attributes[i].type == TypeInt || attributes[i].type == TypeReal){
+            recSize += attributes[i].length;
+        }
+        else{
+            recSize += (sizeof(int) + attributes[i].length);
+        }
+        // std::cout<<"rec size "<<recSize<<std::endl;
+    }
+    return recSize;
+}
+
+
