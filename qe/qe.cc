@@ -835,7 +835,6 @@ RC BNLJoin::getNextTuple(void *data){
         count += recSize;
         recordSizeInBlock.push_back(recSize);
 
-        //get the left block
         while(count <= numPages*PAGE_SIZE){
             if(this -> leftIn -> getNextTuple(leftrec) != QE_EOF) {
                 int recSize = getLengthOfRecord(leftrec, recordDescriptorLeft);
@@ -905,7 +904,7 @@ RC BNLJoin::getNextTuple(void *data){
                         free(intValue);
                         joinresult.push(tempdata);
                         joinsize.push(datalength);
-                        //this->innerLeftOver = true;
+
 
 
                     }
@@ -960,15 +959,7 @@ RC BNLJoin::getNextTuple(void *data){
                         memcpy((char *) tempdata + nullInfo + recordSizeInBlock[i] - nullInfo1, (char *) currRecord + nullInfo2,
                                length2 - nullInfo2);
 
-
-
-
-                        /*  int temp = 0;
-
-                          std::cout<<"right size : "<<length2 - nullInfo2<<std::endl;
-                          memcpy(&temp , (char *) currRecord + nullInfo2+ 2*sizeof(int), sizeof(int) );
-                          std::cout<<"temp val "<<temp<<std::endl;
-  */
+                        
                         free(newIntValue);
                         free(intValue);
                         joinresult.push(tempdata);
@@ -1191,39 +1182,4 @@ void BNLJoin::getAttributes(std::vector<Attribute> &attrs) const {
         attrs.push_back(attr);
     }
 }
-
-void BNLJoin::getStrings(std::string &leftString, std::string &rightString){
-
-    std::string temp = condition.lhsAttr;
-    std::cout<<"condition lhs attr: "<<temp<<std::endl;
-    int loc;
-    loc = temp.find(".");
-    leftString = temp.substr(loc+1);
-
-    std::cout<<"left key name "<<leftString<<std::endl;
-    temp = condition.rhsAttr;
-
-    std::cout<<"condition rhs attr: "<<temp<<std::endl;
-    loc = temp.find(".");
-    rightString = temp.substr(loc+1);
-    std::cout<<"right key name "<<rightString<<std::endl;
-
-}
-
-int getLength(std::vector<Attribute> attributes){
-    int recSize = 0;
-    int offset = ceil((double) attributes.size() / CHAR_BIT);
-    recSize += offset;
-    for(int i = 0; i < attributes.size(); i++){
-        if(attributes[i].type == TypeInt || attributes[i].type == TypeReal){
-            recSize += attributes[i].length;
-        }
-        else{
-            recSize += (sizeof(int) + attributes[i].length);
-        }
-        // std::cout<<"rec size "<<recSize<<std::endl;
-    }
-    return recSize;
-}
-
 

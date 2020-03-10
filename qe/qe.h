@@ -211,7 +211,6 @@ class BNLJoin : public Iterator {
     TableScan *rightIn;
     Condition condition;
     unsigned  numPages;
-    //bool innerLeftOver = false;
     std::queue <void*>joinresult;
     std::queue<int> joinsize;
 
@@ -326,7 +325,5 @@ bool checkConditionChar(char *recordValue, char *compareValue, CompOp comparison
 RC mappingRecord(const std::vector<Attribute>& recordDescriptor, const void *record, void *data, const std::vector<int>& attrPos);
 int checkIfValidAttribute(std::string attrName,const std::vector<Attribute>& recordDescriptor);
 void combineNullBits(const void* record,const void* currRecord,int nullInfo1,int nullInfo2,void* finalBit,int x,int y,int nullInfo);
-int getLength(std::vector<Attribute> attributes);
-void getAttributeValueBlock(const void* data,void* value,int ptr,const std::vector<Attribute>& recordDescriptor, int blockOffset);
 
 #endif
