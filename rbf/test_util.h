@@ -13,6 +13,8 @@
 #include "pfm.h"
 #include "rbfm.h"
 
+using namespace std;
+
 const int success = 0;
 
 // Check whether the given file exists

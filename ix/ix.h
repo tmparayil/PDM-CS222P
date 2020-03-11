@@ -19,6 +19,7 @@ class IXFileHandle;
 class IndexManager {
 
 public:
+
     static IndexManager &instance();
 
     // Create an index file.

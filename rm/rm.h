@@ -8,6 +8,8 @@
 
 #include "../rbf/rbfm.h"
 
+#include "../ix/ix.h"
+
 # define RM_EOF (-1)  // end of a scan operator
 
 // RM_ScanIterator is an iterator to go through tuples
@@ -25,10 +27,32 @@ public:
     RC close();
 };
 
+// RM_IndexScanIterator is an iterator to go through index entries
+class RM_IndexScanIterator {
+public:
+
+    IX_ScanIterator ixScanIterator;
+    RM_IndexScanIterator() {};    // Constructor
+    ~RM_IndexScanIterator() {};    // Destructor
+
+    // "key" follows the same format as in IndexManager::insertEntry()
+    RC getNextEntry(RID &rid, void *key);    // Get next matching entry
+    RC close();
+    // Terminate index scan
+
+    std::string tableName;
+    Attribute attribute;
+
+    IXFileHandle ixFileHandle;
+
+};
+
 // Relation Manager
 class RelationManager {
 public:
     static RelationManager &instance();
+
+
 
     RC createCatalog();
 
@@ -68,6 +92,20 @@ public:
 
     RC dropAttribute(const std::string &tableName, const std::string &attributeName);
 
+    // QE IX related
+    RC createIndex(const std::string &tableName, const std::string &attributeName);
+
+    RC destroyIndex(const std::string &tableName, const std::string &attributeName);
+
+    // indexScan returns an iterator to allow the caller to go through qualified entries in index
+    RC indexScan(const std::string &tableName,
+                 const std::string &attributeName,
+                 const void *lowKey,
+                 const void *highKey,
+                 bool lowKeyInclusive,
+                 bool highKeyInclusive,
+                 RM_IndexScanIterator &rm_IndexScanIterator);
+
 protected:
     RelationManager();                                                  // Prevent construction
     ~RelationManager();                                                 // Prevent unwanted destruction
@@ -82,6 +120,14 @@ protected:
     int findNextId(FileHandle& fileHandle,const std::vector<Attribute>& recordDescriptor);
     RC prepareTableRecord(const int tableId,const std::string& tableName,const std::string& fileName,const int version, void* record);
     bool FileExists(const std::string &fileName);
+    void initIndexRecord(std::vector<Attribute> &recordDescriptor);
+    RC getTableId(std::string tablename);
+    void prepareIndexRecord(int recordsize, char *bitinfo, int tableId, const std::string &colName,const std::string &fileName, void *record);
+    RC getIndices(const std::string &tableName, std::vector<std::string> &attrs);
+    RC insertIntoIndices(std::string tableName,std:: vector<Attribute> &recordDescriptor,const void* data,const RID &rid);
+    RC deleteIndices(FileHandle &fileHandle, std::vector<Attribute> & recordDesc, const std::string &tableName, const RID &rid);
+private:
+    static RelationManager *_relation_manager;
 };
 
 #endif
