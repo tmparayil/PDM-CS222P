@@ -452,15 +452,51 @@ Aggregate::Aggregate(Iterator *input,const Attribute &aggAttr,const Attribute &g
     this->checkFlag = false;
 }
 
+
 void Aggregate::getAttributes(std::vector<Attribute> &attrs) const
 {
-    this->input->getAttributes(attrs);
+    if(this->groupFlag)
+        attrs.push_back(this->groupAttr);
+
+    Attribute temp;
+    if(op == MAX)
+    {
+        temp.name = "MAX(" + this->attribute.name + ")";
+        temp.type = this->attribute.type;
+        temp.length = this->attribute.length;
+    }
+    else if(op == MIN)
+    {
+        temp.name = "MIN(" + this->attribute.name + ")";
+        temp.type = this->attribute.type;
+        temp.length = this->attribute.length;
+    }
+    else if(op == SUM)
+    {
+        temp.name = "SUM(" + this->attribute.name + ")";
+        temp.type = this->attribute.type;
+        temp.length = this->attribute.length;
+    }
+    else if(op == COUNT)
+    {
+        temp.name = "COUNT(" + this->attribute.name + ")";
+        temp.type = this->attribute.type;
+        temp.length = this->attribute.length;
+    }
+    else if(op == AVG)
+    {
+        temp.name = "AVG(" + this->attribute.name + ")";
+        temp.type = this->attribute.type;
+        temp.length = this->attribute.length;
+    }
+
+    attrs.push_back(temp);
 }
 
 RC Aggregate::getNextTuple(void *data) {
 
     std::vector<Attribute> recordDescriptor;
-    Aggregate::getAttributes(recordDescriptor);
+    this->input->getAttributes(recordDescriptor);
 
     if(this->groupFlag)
     {
@@ -500,7 +536,7 @@ RC Aggregate::getNextTuple(void *data) {
             if(recordDescriptor[ptr1].type == TypeInt)
             {
                 int holder;
-                memcpy((char*)&holder,(char*)temp2, sizeof(int));
+                memcpy((char*)&holder,(char*)temp1, sizeof(int));
                 currValue = (float)holder;
                 sum += currValue;
                 count++;
@@ -511,7 +547,7 @@ RC Aggregate::getNextTuple(void *data) {
             }
             else if(recordDescriptor[ptr1].type == TypeReal)
             {
-                memcpy((char*)&currValue,(char*)temp2, sizeof(int));
+                memcpy((char*)&currValue,(char*)temp1, sizeof(int));
                 sum += currValue;
                 count++;
                 if(minVar > currValue)
@@ -548,7 +584,7 @@ RC Aggregate::getNextTuple(void *data) {
             else if(this->groupAttr.type == TypeReal)
             {
                 float temp;
-                memcpy((char*)&temp,(char*)temp2 + sizeof(char), sizeof(int));
+                memcpy((char*)&temp,(char*)temp2, sizeof(int));
 
                 if(this->floatMap.find(temp) == this->floatMap.end()) {
                     std::vector<float> tempVector = {{currValue,currValue,1,currValue,currValue}};
@@ -573,9 +609,9 @@ RC Aggregate::getNextTuple(void *data) {
             else if(this->groupAttr.type == TypeVarChar)
             {
                 int length;
-                memcpy((char*)&length,(char*)temp2 + sizeof(char), sizeof(int));
+                memcpy((char*)&length,(char*)temp2, sizeof(int));
                 std::string temp;
-                memcpy((char*)&temp,(char*)temp2 + sizeof(char),length + sizeof(int));
+                memcpy((char*)&temp,(char*)temp2,length + sizeof(int));
 
                 if(this->strMap.find(temp) == this->strMap.end()) {
                     std::vector<float> tempVector = {{currValue,currValue,1,currValue,currValue}};
@@ -597,8 +633,8 @@ RC Aggregate::getNextTuple(void *data) {
                     this->strMap[temp] = tempVector;
                 }
             }
-            free(temp1);
-            free(temp2);
+	    free(temp1);
+	    free(temp2);
         }
 
         free(record);
@@ -701,8 +737,8 @@ RC Aggregate::getNextTuple(void *data) {
             return -1;
 
         float sum = 0 ;
-        float min = FLT_MAX;
-        float max = FLT_MIN;
+	float min = FLT_MAX;
+	float max = FLT_MIN;
         int x = 0; float count = 0;
         void* record = malloc(PAGE_SIZE);
         while(this->input->getNextTuple(record) != QE_EOF)
@@ -733,7 +769,7 @@ RC Aggregate::getNextTuple(void *data) {
                 if(max < currValue)
                     max = currValue;
             }
-            free(temp);
+	    free(temp);
         }
 
         free(record);
@@ -1024,7 +1060,7 @@ RC INLJoin::getNextTuple(void *data) {
         return -1;
 
     void* record = malloc(PAGE_SIZE);
-    while(this->leftOver && this->leftIn->getNextTuple(record) != QE_EOF)
+    while(this->leftOver || this->leftIn->getNextTuple(record) != QE_EOF)
     {
 
 
@@ -1036,7 +1072,7 @@ RC INLJoin::getNextTuple(void *data) {
             getAttributeValue(record,intValue,ptr1,recordDescriptor1);
 
             if(!this->innerLeftOver)
-                this->rightIn->setIterator(nullptr, nullptr,false,false);
+                this->rightIn->setIterator(nullptr, nullptr,true,true);
 
             void* currRecord = malloc(PAGE_SIZE);
             while(this->rightIn->getNextTuple(currRecord) != QE_EOF)
