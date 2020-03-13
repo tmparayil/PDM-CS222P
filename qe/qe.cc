@@ -1,4 +1,3 @@
-#include <sys/attr.h>
 #include <cmath>
 #include <float.h>
 #include "qe.h"
@@ -62,9 +61,15 @@ bool checkIfTrueWrapper(const void* data,const Condition& condition,int ptr,cons
     void* value = malloc(PAGE_SIZE);
     getAttributeValue(data,value,ptr,recordDescriptor);
     if(checkCondition(value,condition))
+    {
+        free(value);
         return true;
+    }
     else
+    {
+        free(value);
         return false;
+    }
 }
 
 bool checkCondition(const void* value,const Condition& condition)
@@ -447,15 +452,51 @@ Aggregate::Aggregate(Iterator *input,const Attribute &aggAttr,const Attribute &g
     this->checkFlag = false;
 }
 
+
 void Aggregate::getAttributes(std::vector<Attribute> &attrs) const
 {
-    this->input->getAttributes(attrs);
+    if(this->groupFlag)
+        attrs.push_back(this->groupAttr);
+
+    Attribute temp;
+    if(op == MAX)
+    {
+        temp.name = "MAX(" + this->attribute.name + ")";
+        temp.type = this->attribute.type;
+        temp.length = this->attribute.length;
+    }
+    else if(op == MIN)
+    {
+        temp.name = "MIN(" + this->attribute.name + ")";
+        temp.type = this->attribute.type;
+        temp.length = this->attribute.length;
+    }
+    else if(op == SUM)
+    {
+        temp.name = "SUM(" + this->attribute.name + ")";
+        temp.type = this->attribute.type;
+        temp.length = this->attribute.length;
+    }
+    else if(op == COUNT)
+    {
+        temp.name = "COUNT(" + this->attribute.name + ")";
+        temp.type = this->attribute.type;
+        temp.length = this->attribute.length;
+    }
+    else if(op == AVG)
+    {
+        temp.name = "AVG(" + this->attribute.name + ")";
+        temp.type = this->attribute.type;
+        temp.length = this->attribute.length;
+    }
+
+    attrs.push_back(temp);
 }
 
 RC Aggregate::getNextTuple(void *data) {
 
     std::vector<Attribute> recordDescriptor;
-    Aggregate::getAttributes(recordDescriptor);
+    this->input->getAttributes(recordDescriptor);
 
     if(this->groupFlag)
     {
@@ -495,7 +536,7 @@ RC Aggregate::getNextTuple(void *data) {
             if(recordDescriptor[ptr1].type == TypeInt)
             {
                 int holder;
-                memcpy((char*)&holder,(char*)temp2, sizeof(int));
+                memcpy((char*)&holder,(char*)temp1, sizeof(int));
                 currValue = (float)holder;
                 sum += currValue;
                 count++;
@@ -506,7 +547,7 @@ RC Aggregate::getNextTuple(void *data) {
             }
             else if(recordDescriptor[ptr1].type == TypeReal)
             {
-                memcpy((char*)&currValue,(char*)temp2, sizeof(int));
+                memcpy((char*)&currValue,(char*)temp1, sizeof(int));
                 sum += currValue;
                 count++;
                 if(minVar > currValue)
@@ -543,7 +584,7 @@ RC Aggregate::getNextTuple(void *data) {
             else if(this->groupAttr.type == TypeReal)
             {
                 float temp;
-                memcpy((char*)&temp,(char*)temp2 + sizeof(char), sizeof(int));
+                memcpy((char*)&temp,(char*)temp2, sizeof(int));
 
                 if(this->floatMap.find(temp) == this->floatMap.end()) {
                     std::vector<float> tempVector = {{currValue,currValue,1,currValue,currValue}};
@@ -568,9 +609,9 @@ RC Aggregate::getNextTuple(void *data) {
             else if(this->groupAttr.type == TypeVarChar)
             {
                 int length;
-                memcpy((char*)&length,(char*)temp2 + sizeof(char), sizeof(int));
+                memcpy((char*)&length,(char*)temp2, sizeof(int));
                 std::string temp;
-                memcpy((char*)&temp,(char*)temp2 + sizeof(char),length + sizeof(int));
+                memcpy((char*)&temp,(char*)temp2,length + sizeof(int));
 
                 if(this->strMap.find(temp) == this->strMap.end()) {
                     std::vector<float> tempVector = {{currValue,currValue,1,currValue,currValue}};
@@ -592,6 +633,8 @@ RC Aggregate::getNextTuple(void *data) {
                     this->strMap[temp] = tempVector;
                 }
             }
+            free(temp1);
+            free(temp2);
         }
 
         free(record);
@@ -693,7 +736,9 @@ RC Aggregate::getNextTuple(void *data) {
         if(!attrCheck)
             return -1;
 
-        float sum = 0 ; float min = MAXFLOAT , max = FLT_MIN;
+        float sum = 0 ;
+        float min = FLT_MAX;
+        float max = FLT_MIN;
         int x = 0; float count = 0;
         void* record = malloc(PAGE_SIZE);
         while(this->input->getNextTuple(record) != QE_EOF)
@@ -724,6 +769,7 @@ RC Aggregate::getNextTuple(void *data) {
                 if(max < currValue)
                     max = currValue;
             }
+            free(temp);
         }
 
         free(record);
@@ -813,8 +859,7 @@ RC BNLJoin::getNextTuple(void *data){
     if( ptr1 == -1 || ptr2 == -1)
         return -1;
 
-    void *leftrec = malloc(PAGE_SIZE);
-   // std::cout<<"size"<<joinresult.size()<<std::endl;
+    // std::cout<<"size"<<joinresult.size()<<std::endl;
     if(!joinresult.empty()){
         memcpy((char*)data, (char*)joinresult.front(), joinsize.front());
         joinresult.pop();
@@ -822,6 +867,7 @@ RC BNLJoin::getNextTuple(void *data){
         return 0;
     }
 
+    void *leftrec = malloc(PAGE_SIZE);
     while(this -> leftIn -> getNextTuple(leftrec) != QE_EOF){
         int count = 0;
         void* leftBlock = malloc(PAGE_SIZE*numPages);
@@ -829,7 +875,7 @@ RC BNLJoin::getNextTuple(void *data){
         //get the left block
         std::vector<int> recordSizeInBlock{};
         int recSize = getLengthOfRecord(leftrec, recordDescriptorLeft);
-       // std::cout<<"rec size is "<<recSize<<std::endl;
+        // std::cout<<"rec size is "<<recSize<<std::endl;
 
         memcpy((char*) leftBlock + count, leftrec, recSize);
         count += recSize;
@@ -846,7 +892,6 @@ RC BNLJoin::getNextTuple(void *data){
                 break;
         }
 
-        free(leftrec);
         //std::cout<<"left block stored "<<std::endl;
         //the left block of size numPages*PAGE_SIZE done
 
@@ -865,7 +910,7 @@ RC BNLJoin::getNextTuple(void *data){
                     void *record = malloc(recordSizeInBlock[i]);
                     memcpy((char*)record, (char*) leftBlock + currcount, recordSizeInBlock[i]);
                     getAttributeValue(record, intValue, ptr1, recordDescriptorLeft);
-                   // std::cout<<"record size"<<recordSizeInBlock[i]<<std::endl;
+                    // std::cout<<"record size"<<recordSizeInBlock[i]<<std::endl;
 
                     int length2 = getLengthOfRecord(currRecord, recordDescriptorRight);
                     int nullInfo2 = ceil((double) recordDescriptorRight.size() / CHAR_BIT);
@@ -876,7 +921,7 @@ RC BNLJoin::getNextTuple(void *data){
                     int x1, x2;
                     memcpy((char *) &x1, (char *) intValue, sizeof(int));
                     memcpy((char *) &x2, (char *) newIntValue, sizeof(int));
-            //   std::cout<<x1<<" , "<<x2<<std::endl;
+                    //   std::cout<<x1<<" , "<<x2<<std::endl;
 
                     if (x1 == x2) {
                         void *finalBit = malloc(nullInfo);
@@ -893,21 +938,17 @@ RC BNLJoin::getNextTuple(void *data){
 
 
 
+                        free(finalBit);
 
-                      /*  int temp = 0;
-
-                        std::cout<<"right size : "<<length2 - nullInfo2<<std::endl;
-                        memcpy(&temp , (char *) currRecord + nullInfo2+ 2*sizeof(int), sizeof(int) );
-                        std::cout<<"temp val "<<temp<<std::endl;
-*/
-                        free(newIntValue);
-                        free(intValue);
                         joinresult.push(tempdata);
                         joinsize.push(datalength);
-
+                        tempdata = NULL;
+                        free(tempdata);
 
 
                     }
+                    free(newIntValue);
+                    free(intValue);
                     currcount += recordSizeInBlock[i];
                     i++;
                     free(record);
@@ -918,7 +959,7 @@ RC BNLJoin::getNextTuple(void *data){
 
 
         }
-       else  if(recordDescriptorLeft[ptr1].type == TypeReal) {
+        else  if(recordDescriptorLeft[ptr1].type == TypeReal) {
 
 
 
@@ -959,15 +1000,15 @@ RC BNLJoin::getNextTuple(void *data){
                         memcpy((char *) tempdata + nullInfo + recordSizeInBlock[i] - nullInfo1, (char *) currRecord + nullInfo2,
                                length2 - nullInfo2);
 
-                        
-                        free(newIntValue);
-                        free(intValue);
                         joinresult.push(tempdata);
                         joinsize.push(datalength);
                         //this->innerLeftOver = true;
-
+                        tempdata = NULL;
+                        free(tempdata);
 
                     }
+                    free(newIntValue);
+                    free(intValue);
                     currcount += recordSizeInBlock[i];
                     i++;
                     free(record);
@@ -984,9 +1025,10 @@ RC BNLJoin::getNextTuple(void *data){
 
     }
 
+    free(leftrec);
     if(!joinresult.empty()){
-    memcpy((char*)data,(char*)joinresult.front(), joinsize.front() );
-        std::cout<<"size"<<joinresult.size()<<std::endl;
+        memcpy((char*)data,(char*)joinresult.front(), joinsize.front() );
+
         joinresult.pop();
         joinsize.pop();
         return 0;
@@ -1017,10 +1059,8 @@ RC INLJoin::getNextTuple(void *data) {
         return -1;
 
     void* record = malloc(PAGE_SIZE);
-    while(this->leftOver && this->leftIn->getNextTuple(record) != QE_EOF)
+    while(this->leftOver || this->leftIn->getNextTuple(record) != QE_EOF)
     {
-
-
         int length1 = getLengthOfRecord(record,recordDescriptor1);
 
         if(recordDescriptor1[ptr1].type == TypeInt)
@@ -1029,7 +1069,7 @@ RC INLJoin::getNextTuple(void *data) {
             getAttributeValue(record,intValue,ptr1,recordDescriptor1);
 
             if(!this->innerLeftOver)
-                this->rightIn->setIterator(nullptr, nullptr,false,false);
+                this->rightIn->setIterator(intValue, intValue,true,true);
 
             void* currRecord = malloc(PAGE_SIZE);
             while(this->rightIn->getNextTuple(currRecord) != QE_EOF)
@@ -1065,13 +1105,13 @@ RC INLJoin::getNextTuple(void *data) {
             free(currRecord);
             free(intValue);
         }
-        if(recordDescriptor1[ptr1].type == TypeReal)
+        else if(recordDescriptor1[ptr1].type == TypeReal)
         {
             void* realValue = malloc(sizeof(int));
             getAttributeValue(record,realValue,ptr1,recordDescriptor1);
 
             if(!this->innerLeftOver)
-                this->rightIn->setIterator(nullptr, nullptr, false,false);
+                this->rightIn->setIterator(realValue, realValue, true,true);
 
             void* currRecord = malloc(PAGE_SIZE);
             while(this->rightIn->getNextTuple(currRecord) != QE_EOF)
@@ -1182,4 +1222,3 @@ void BNLJoin::getAttributes(std::vector<Attribute> &attrs) const {
         attrs.push_back(attr);
     }
 }
-

@@ -82,6 +82,7 @@ RC PagedFileManager::openFile(const std::string &fileName, FileHandle &fileHandl
         return -1;
     }
     if(file_exists(fileName)) {
+
         fileHandle.setFile(const_cast<std::string &>(fileName));
         return 0;
     }
@@ -109,6 +110,7 @@ FileHandle::~FileHandle() = default;
 
 void FileHandle::setFile(std::string& fileName) {
     file = new std::fstream(fileName);
+    if(file == nullptr) std::cout<<"no alloc"<<std::endl;
 }
 
 void FileHandle::closeFile()
