@@ -1089,6 +1089,7 @@ RC INLJoin::getNextTuple(void *data) {
                 {
                     void* finalBit = malloc(nullInfo);
                     combineNullBits(record,currRecord,nullInfo1,nullInfo2,finalBit,recordDescriptor1.size(),recordDescriptor2.size(),nullInfo);
+                    memcpy((char*)data,(char*)finalBit,nullInfo);
                     memcpy((char*)data + nullInfo,(char*)record + nullInfo1,length1 - nullInfo1);
                     memcpy((char*)data + nullInfo + length1 - nullInfo1,(char*)currRecord + nullInfo2,length2 - nullInfo2);
                     this->leftOver = true;
