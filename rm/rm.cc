@@ -1043,7 +1043,6 @@ RC RelationManager::getIndices(const std::string &tableName, std::vector<std::st
         memcpy((char*)keyStr, (char*)returnedData + 1 + 2*sizeof(int),length);
         keyStr[length] = '\0';
         attributename.push_back(keyStr);
-        std::cout<<"keystr is "<<keyStr<<std::endl;
         delete[] keyStr;
     }
     free(returnedData);
