@@ -633,8 +633,8 @@ RC Aggregate::getNextTuple(void *data) {
                     this->strMap[temp] = tempVector;
                 }
             }
-	    free(temp1);
-	    free(temp2);
+            free(temp1);
+            free(temp2);
         }
 
         free(record);
@@ -737,8 +737,8 @@ RC Aggregate::getNextTuple(void *data) {
             return -1;
 
         float sum = 0 ;
-	float min = FLT_MAX;
-	float max = FLT_MIN;
+        float min = FLT_MAX;
+        float max = FLT_MIN;
         int x = 0; float count = 0;
         void* record = malloc(PAGE_SIZE);
         while(this->input->getNextTuple(record) != QE_EOF)
@@ -769,7 +769,7 @@ RC Aggregate::getNextTuple(void *data) {
                 if(max < currValue)
                     max = currValue;
             }
-	    free(temp);
+            free(temp);
         }
 
         free(record);
@@ -864,7 +864,6 @@ RC BNLJoin::getNextTuple(void *data){
         memcpy((char*)data, (char*)joinresult.front(), joinsize.front());
         joinresult.pop();
         joinsize.pop();
-        free(leftrec);
         return 0;
     }
 
@@ -1062,8 +1061,6 @@ RC INLJoin::getNextTuple(void *data) {
     void* record = malloc(PAGE_SIZE);
     while(this->leftOver || this->leftIn->getNextTuple(record) != QE_EOF)
     {
-
-
         int length1 = getLengthOfRecord(record,recordDescriptor1);
 
         if(recordDescriptor1[ptr1].type == TypeInt)
@@ -1072,7 +1069,7 @@ RC INLJoin::getNextTuple(void *data) {
             getAttributeValue(record,intValue,ptr1,recordDescriptor1);
 
             if(!this->innerLeftOver)
-                this->rightIn->setIterator(nullptr, nullptr,true,true);
+                this->rightIn->setIterator(intValue, intValue,true,true);
 
             void* currRecord = malloc(PAGE_SIZE);
             while(this->rightIn->getNextTuple(currRecord) != QE_EOF)
@@ -1108,13 +1105,13 @@ RC INLJoin::getNextTuple(void *data) {
             free(currRecord);
             free(intValue);
         }
-        if(recordDescriptor1[ptr1].type == TypeReal)
+        else if(recordDescriptor1[ptr1].type == TypeReal)
         {
             void* realValue = malloc(sizeof(int));
             getAttributeValue(record,realValue,ptr1,recordDescriptor1);
 
             if(!this->innerLeftOver)
-                this->rightIn->setIterator(nullptr, nullptr, false,false);
+                this->rightIn->setIterator(realValue, realValue, true,true);
 
             void* currRecord = malloc(PAGE_SIZE);
             while(this->rightIn->getNextTuple(currRecord) != QE_EOF)
