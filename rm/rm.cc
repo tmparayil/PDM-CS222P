@@ -1,5 +1,7 @@
 #include "rm.h"
 #include<math.h>
+#include<vector>
+#include<algorithm>
 #include "../ix/ix.h"
 
 
@@ -242,7 +244,6 @@ RC RelationManager::createCatalog() {
 
 RC RelationManager::deleteCatalog() {
     RecordBasedFileManager& recordBasedFileManager = RecordBasedFileManager::instance();
-
     recordBasedFileManager.destroyFile("Columns");
     recordBasedFileManager.destroyFile("Tables");
     recordBasedFileManager.destroyFile("Indices");
@@ -449,6 +450,8 @@ RC RelationManager::getAttributes(const std::string &tableName, std::vector<Attr
     std::string attr = "table-id";
     tblid_attr.push_back(attr);
     recordBasedFileManager.openFile("Tables", tableHandler);
+  
+   
     recordBasedFileManager.scan(tableHandler,tableDescriptor,"table-name",EQ_OP, val, tblid_attr,tableScan);
 
     while(tableScan.getNextRecord(rid,scanResult_tbl) != RBFM_EOF){
@@ -471,6 +474,7 @@ RC RelationManager::getAttributes(const std::string &tableName, std::vector<Attr
     col_attributes.push_back(col_attr2);
     col_attributes.push_back(col_attr3);
     recordBasedFileManager.openFile("Columns", columnHandler);
+ 
 
     void *val1 = malloc(sizeof(int));
     memcpy((char*)val1, &tableID, sizeof(int));
@@ -546,7 +550,7 @@ bool RelationManager::FileExists(const std::string &fileName) {
     return stat(fileName.c_str(), &stFileInfo) == 0;
 }
 
-RC RelationManager::insertTuple(const std::string &tableName, const void *data, RID &rid) {
+RC RelationManager::insertTuple(const std::string &tableName, const void *data, RID &rid) { 
 
     FileHandle fileHandle;
     RecordBasedFileManager& recordBasedFileManager = RecordBasedFileManager::instance();
@@ -557,6 +561,9 @@ RC RelationManager::insertTuple(const std::string &tableName, const void *data, 
         return -1;
 
     recordBasedFileManager.openFile(tableName, fileHandle);
+    if(!fileHandle.check_file_stream())
+        std::cout<<"file handle is null"<<std::endl;
+
     std::vector<Attribute> recordDescriptor;
     getAttributes(tableName,recordDescriptor);
     int res = recordBasedFileManager.insertRecord(fileHandle,recordDescriptor,data, rid);
@@ -648,7 +655,7 @@ RC RM_ScanIterator::getNextTuple(RID &rid, void *data) {
 }
 
 RC RM_ScanIterator::close() {
-    rbfmScanIterator.fileHandle.closeFile();
+    //rbfmScanIterator.fileHandle.closeFile();
     return 0;
 }
 
@@ -752,12 +759,12 @@ RC RelationManager::createIndex(const std::string &tableName, const std::string 
     }
 
     //   indexManager.printBtree(ixFileHandler, attr);
-    ixFileHandler.file->close();
+    indexManager.closeFile(ixFileHandler);
     rmScanIterator.close();
     free(returnedData);
-    fileHandle_ix.closeFile();
+    rbfm.closeFile(fileHandle_ix);
     free(record);
-    free(bitInfo);
+    delete[] bitInfo;
 
     return 0;
 
@@ -821,6 +828,7 @@ RC RelationManager:: getTableId(std::string tablename){
     }
     free(record);
     free(returnedData);
+    rbfm.closeFile(fileHandle);
     return tableID;
 }
 
@@ -941,34 +949,39 @@ RC RM_IndexScanIterator::close() {
 
 RC RelationManager::insertIntoIndices(std::string tableName,std:: vector<Attribute> &recordDescriptor,const void* data, const RID &rid){
     std::vector<std::string> attributeNames;
-    getIndices(tableName, attributeNames);
+    //getIndices(tableName, attributeNames);
+    
+    for(Attribute attr: recordDescriptor)
+{
+	std::string filename = tableName+"_"+attr.name+"_index";
+	if(FileExists(filename))
+		attributeNames.push_back(attr.name);
+}
     std::vector<std::string> attrs = attributeNames;
     //std::cout<<"attr size "<<attributeNames.size()<<std::endl;
     /* for(int i = 0; i < attributeNames.size(); i++){
          attrs.push_back(attributeNames[i].name);
      }*/
+
     int nullinfosize = ceil((double) recordDescriptor.size()/CHAR_BIT);
     char *nullinfo = (char*)malloc(nullinfosize);
     memcpy(nullinfo, (char*) data, nullinfosize);
     for(int i=0; i< recordDescriptor.size(); i++) {
         Attribute temp = recordDescriptor[i];
         bool nullbit = nullinfo[i / 8] & (1 << (7 - i % 8));
-        if (nullbit) {
-            if(find(attrs.begin(), attrs.end(), temp.name) != attrs.end())
-                break;
-
-            continue;
-
-        }
-        if(find(attrs.begin(), attrs.end(), temp.name) != attrs.end()){
+        if (!nullbit) {
+           
+        if(std::find(attrs.begin(), attrs.end(), temp.name) != attrs.end()){
 
             std::string filename = tableName + "_" + temp.name + "_index";
-            //  std::cout<<" tem name "<<temp.name<<std::endl;
+         
 
             IXFileHandle ixFileHandle;
             IndexManager &indexManager = IndexManager::instance();
             indexManager.openFile(filename, ixFileHandle);
             indexManager.insertEntry(ixFileHandle, temp, (char*)data+nullinfosize ,rid);
+	    indexManager.closeFile(ixFileHandle); 
+	    return 0;
 
         }else{
             if(temp.type == TypeVarChar){
@@ -980,8 +993,10 @@ RC RelationManager::insertIntoIndices(std::string tableName,std:: vector<Attribu
                 nullinfosize += temp.length;
             }
         }
+	}
 
-    }return 0;
+    }
+	return 0;
 }
 
 
@@ -989,19 +1004,21 @@ RC RelationManager::getIndices(const std::string &tableName, std::vector<std::st
 
     int tableId = getTableId(tableName);
 
-    std::vector<std::string> attributeNames{"table-id","column-name","file-name"};
+    //std::cout<<"getIndices : "<<tableId<<std::endl;
+	std::vector<std::string> attributeNames{"table-id","column-name","file-name"};
 
     FileHandle indexHandler;
     RBFM_ScanIterator rbscan;
 
     std::vector<Attribute> indexDescriptor;
-   initIndexRecord(indexDescriptor);
+    initIndexRecord(indexDescriptor);
     RecordBasedFileManager &recordBasedFileManager = RecordBasedFileManager::instance();
     recordBasedFileManager.openFile("Indices",indexHandler);
+    
     void *val1 = malloc(sizeof(int));
     memcpy((char*)val1, &tableId, sizeof(int));
 
-  //  std::cout<<"table id is "<<tableId<<"table name "<<tableName<<std::endl;
+    //std::cout<<"table id is "<<tableId<<"table name "<<tableName<<std::endl;
 
     /*scan(FileHandle &fileHandle, const std::vector<Attribute> &recordDescriptor,
                                 const std::string &conditionAttribute, const CompOp compOp, const void *value,
@@ -1017,7 +1034,7 @@ RC RelationManager::getIndices(const std::string &tableName, std::vector<std::st
     //std::cout<<"rd";
     RID nextrid;
     while(rbscan.getNextRecord(nextrid,returnedData) != RBFM_EOF){
-        int length;
+	int length;
         memcpy(&length, (char*)returnedData + 1 + sizeof(int), sizeof(int));
 
        // std::cout<<"length is "<<length<<std::endl;
@@ -1026,20 +1043,26 @@ RC RelationManager::getIndices(const std::string &tableName, std::vector<std::st
         memcpy((char*)keyStr, (char*)returnedData + 1 + 2*sizeof(int),length);
         keyStr[length] = '\0';
         attributename.push_back(keyStr);
-         //std::cout<<"keystr is "<<keyStr<<std::endl;
-        free(keyStr);
+        delete[] keyStr;
     }
     free(returnedData);
     recordBasedFileManager.closeFile(indexHandler);
-    rbscan.close();
+    //rbscan.close();
     return 0;
-
 }
 
 
 RC RelationManager::deleteIndices(FileHandle &fileHandle, std::vector<Attribute> & recordDescriptor, const std::string & tableName, const RID &rid){
     std::vector<std::string> attributeNames;
-    getIndices(tableName, attributeNames);
+    //getIndices(tableName, attributeNames);
+
+for(Attribute attr: recordDescriptor)
+{
+        std::string filename = tableName+"_"+attr.name+"_index";
+        if(FileExists(filename))
+                attributeNames.push_back(attr.name);
+}
+
 
     RecordBasedFileManager &rbfm = RecordBasedFileManager::instance();
     IXFileHandle ixFileHandle;
@@ -1056,11 +1079,11 @@ RC RelationManager::deleteIndices(FileHandle &fileHandle, std::vector<Attribute>
         Attribute temp = recordDescriptor[i];
         bool nullbit = nullinfo[i / 8] & (1 << (7 - i % 8));
         if (nullbit) {
-            if(find(attributeNames.begin(), attributeNames.end(), temp.name) != attributeNames.end())
+            if(std::find(attributeNames.begin(), attributeNames.end(), temp.name) != attributeNames.end())
                 break;
             continue;
 
-        }if(find(attributeNames.begin(), attributeNames.end(), temp.name) != attributeNames.end()){
+        }if(std::find(attributeNames.begin(), attributeNames.end(), temp.name) != attributeNames.end()){
 
             std::string filename = tableName + "_" + temp.name + "_index";
             indexManager.openFile(filename, ixFileHandle);

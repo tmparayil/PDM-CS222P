@@ -1,5 +1,3 @@
-
-
 #include <cmath>
 #include <float.h>
 #include "qe.h"
@@ -830,6 +828,7 @@ RC BNLJoin::getNextTuple(void *data){
         memcpy((char*)data, (char*)joinresult.front(), joinsize.front());
         joinresult.pop();
         joinsize.pop();
+        free(leftrec);
         return 0;
     }
 
@@ -905,13 +904,6 @@ RC BNLJoin::getNextTuple(void *data){
 
 
                         free(finalBit);
-                        /*  int temp = 0;
-
-                          std::cout<<"right size : "<<length2 - nullInfo2<<std::endl;
-                          memcpy(&temp , (char *) currRecord + nullInfo2+ 2*sizeof(int), sizeof(int) );
-                          std::cout<<"temp val "<<temp<<std::endl;
-  */
-
 
                         joinresult.push(tempdata);
                         joinsize.push(datalength);
@@ -972,9 +964,6 @@ RC BNLJoin::getNextTuple(void *data){
 
                         memcpy((char *) tempdata + nullInfo + recordSizeInBlock[i] - nullInfo1, (char *) currRecord + nullInfo2,
                                length2 - nullInfo2);
-
-
-
 
                         joinresult.push(tempdata);
                         joinsize.push(datalength);
