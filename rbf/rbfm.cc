@@ -1272,6 +1272,7 @@ RC RecordBasedFileManager::scan(FileHandle &fileHandle, const std::vector<Attrib
     //If link -> store in HashSet
 
     rbfm_ScanIterator.fileHandle = fileHandle;
+    rbfm_ScanIterator.fileHandle.file = fileHandle.file;
     rbfm_ScanIterator.recordDescriptor = recordDescriptor;
     rbfm_ScanIterator.comparisonOperator = compOp;
     rbfm_ScanIterator.attributeNames = attributeNames;
@@ -1722,6 +1723,11 @@ bool RBFM_ScanIterator::satisfyCondition(const void *record) {
     }
 
     return -1;
+}
+
+RC RBFM_ScanIterator::close() {
+    free(value);
+    return 0;
 }
 
 bool RBFM_ScanIterator::checkConditionInt(int recordValue, int compareValue, CompOp comparisonOperator) {

@@ -1,4 +1,3 @@
-#include <sys/attr.h>
 #include <cmath>
 #include <float.h>
 #include "qe.h"
@@ -62,9 +61,15 @@ bool checkIfTrueWrapper(const void* data,const Condition& condition,int ptr,cons
     void* value = malloc(PAGE_SIZE);
     getAttributeValue(data,value,ptr,recordDescriptor);
     if(checkCondition(value,condition))
-        return true;
+    {
+	free(value);
+	return true;
+    }
     else
-        return false;
+    {
+	free(value);
+	return false;
+    } 
 }
 
 bool checkCondition(const void* value,const Condition& condition)
@@ -592,6 +597,8 @@ RC Aggregate::getNextTuple(void *data) {
                     this->strMap[temp] = tempVector;
                 }
             }
+	    free(temp1);
+	    free(temp2);
         }
 
         free(record);
@@ -693,7 +700,9 @@ RC Aggregate::getNextTuple(void *data) {
         if(!attrCheck)
             return -1;
 
-        float sum = 0 ; float min = MAXFLOAT , max = FLT_MIN;
+        float sum = 0 ;
+	float min = FLT_MAX;
+	float max = FLT_MIN;
         int x = 0; float count = 0;
         void* record = malloc(PAGE_SIZE);
         while(this->input->getNextTuple(record) != QE_EOF)
@@ -724,6 +733,7 @@ RC Aggregate::getNextTuple(void *data) {
                 if(max < currValue)
                     max = currValue;
             }
+	    free(temp);
         }
 
         free(record);
@@ -819,6 +829,7 @@ RC BNLJoin::getNextTuple(void *data){
         memcpy((char*)data, (char*)joinresult.front(), joinsize.front());
         joinresult.pop();
         joinsize.pop();
+        free(leftrec);
         return 0;
     }
 
@@ -893,21 +904,23 @@ RC BNLJoin::getNextTuple(void *data){
 
 
 
-
+                        free(finalBit);
                       /*  int temp = 0;
 
                         std::cout<<"right size : "<<length2 - nullInfo2<<std::endl;
                         memcpy(&temp , (char *) currRecord + nullInfo2+ 2*sizeof(int), sizeof(int) );
                         std::cout<<"temp val "<<temp<<std::endl;
 */
-                        free(newIntValue);
-                        free(intValue);
+            
+           
                         joinresult.push(tempdata);
                         joinsize.push(datalength);
-
+			free(tempdata);
 
 
                     }
+		    free(newIntValue);
+		    free(intValue);
                     currcount += recordSizeInBlock[i];
                     i++;
                     free(record);
@@ -960,14 +973,16 @@ RC BNLJoin::getNextTuple(void *data){
                                length2 - nullInfo2);
 
                         
-                        free(newIntValue);
-                        free(intValue);
+          
+         
                         joinresult.push(tempdata);
                         joinsize.push(datalength);
                         //this->innerLeftOver = true;
-
+			free(tempdata);
 
                     }
+                    free(newIntValue);
+      		    free(intValue);
                     currcount += recordSizeInBlock[i];
                     i++;
                     free(record);
@@ -986,7 +1001,7 @@ RC BNLJoin::getNextTuple(void *data){
 
     if(!joinresult.empty()){
     memcpy((char*)data,(char*)joinresult.front(), joinsize.front() );
-        std::cout<<"size"<<joinresult.size()<<std::endl;
+
         joinresult.pop();
         joinsize.pop();
         return 0;
