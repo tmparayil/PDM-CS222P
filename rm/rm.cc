@@ -244,7 +244,6 @@ RC RelationManager::createCatalog() {
 
 RC RelationManager::deleteCatalog() {
     RecordBasedFileManager& recordBasedFileManager = RecordBasedFileManager::instance();
-    std::cout<<"delete catalog called"<<std::endl;
     recordBasedFileManager.destroyFile("Columns");
     recordBasedFileManager.destroyFile("Tables");
     recordBasedFileManager.destroyFile("Indices");
